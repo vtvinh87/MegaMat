@@ -79,7 +79,7 @@ export const Header: React.FC = () => {
                 className="flex items-center text-xl font-bold text-text-heading hover:opacity-80 transition-opacity"
               >
                 <img 
-                  src="pictures/megamat-logo.png" 
+                  src="https://raw.githubusercontent.com/vtvinh87/MegaMat/refs/heads/main/pictures/megamat-logo.png" 
                   alt="Megamat Logo" 
                   className="h-8 w-8 mr-2 rounded-md object-contain"
                 /> 

@@ -1,3 +1,4 @@
+
 import React, { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,7 +44,7 @@ const LoginPage: React.FC = () => {
         >
           <div className="text-center">
             <img
-                src="pictures/megamat-logo.png"
+                src="https://raw.githubusercontent.com/vtvinh87/MegaMat/refs/heads/main/pictures/megamat-logo.png"
                 alt={`${APP_NAME} Logo`}
                 className="mx-auto h-16 w-auto mb-4 rounded-lg object-contain"
             />
