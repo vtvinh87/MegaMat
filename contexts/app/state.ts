@@ -3,7 +3,7 @@ import {
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
     MaterialItemDefinition, Notification, VariableCost, FixedCostItem, 
     FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreProfile,
-    StoreUpdateHistoryEntry, Promotion
+    StoreUpdateHistoryEntry, Promotion, WashMethodDefinition
 } from '../../types';
 import { loadDataFromLocalStorage, saveDataToLocalStorage } from './utils';
 import * as LsKeys from './utils';
@@ -45,7 +45,8 @@ export const useAppState = () => {
   const [acknowledgedSystemPromos, setAcknowledgedSystemPromos] = useState<{ [ownerId: string]: string[] }>(() => loadDataFromLocalStorage(LsKeys.ACKNOWLEDGED_SYSTEM_PROMOS_KEY, {}));
   const [acknowledgedCancelRequests, setAcknowledgedCancelRequests] = useState<{ [ownerId: string]: string[] }>(() => loadDataFromLocalStorage(LsKeys.ACKNOWLEDGED_CANCEL_REQUESTS_KEY, {}));
   const [acknowledgedOptOutRequests, setAcknowledgedOptOutRequests] = useState<{ [chairmanId: string]: string[] }>(() => loadDataFromLocalStorage(LsKeys.ACKNOWLEDGED_OPT_OUT_REQUESTS_KEY, {}));
-  
+  const [washMethodsData, setWashMethodsData] = useState<WashMethodDefinition[]>(() => loadDataFromLocalStorage<WashMethodDefinition[]>(LsKeys.WASH_METHODS_KEY, []));
+
   // Granular, debounced effects for saving each piece of state
   useDebouncedSave(LsKeys.USERS_KEY, usersData);
   useDebouncedSave(LsKeys.SERVICES_KEY, servicesData);
@@ -68,6 +69,7 @@ export const useAppState = () => {
   useDebouncedSave(LsKeys.ACKNOWLEDGED_SYSTEM_PROMOS_KEY, acknowledgedSystemPromos);
   useDebouncedSave(LsKeys.ACKNOWLEDGED_CANCEL_REQUESTS_KEY, acknowledgedCancelRequests);
   useDebouncedSave(LsKeys.ACKNOWLEDGED_OPT_OUT_REQUESTS_KEY, acknowledgedOptOutRequests);
+  useDebouncedSave(LsKeys.WASH_METHODS_KEY, washMethodsData);
 
   return {
     usersData, setUsersData,
@@ -93,5 +95,6 @@ export const useAppState = () => {
     acknowledgedSystemPromos, setAcknowledgedSystemPromos,
     acknowledgedCancelRequests, setAcknowledgedCancelRequests,
     acknowledgedOptOutRequests, setAcknowledgedOptOutRequests,
+    washMethodsData, setWashMethodsData,
   };
 };

@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { UserRole } from '../../types';
 import { APP_NAME } from '../../constants'; 
-import { HomeIcon, PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, SettingsIcon, BellIcon, MenuIcon, XIcon, SparklesIcon, TrendingUpIcon, LogOutIcon, LogInIcon, UserCircleIcon, UserCogIcon, BuildingIcon, FileTextIcon, MoonIcon, SunIcon, TagIcon, LayoutDashboard } from 'lucide-react';
+import { HomeIcon, PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, SettingsIcon, BellIcon, MenuIcon, XIcon, SparklesIcon, TrendingUpIcon, LogOutIcon, LogInIcon, UserCircleIcon, UserCogIcon, BuildingIcon, FileTextIcon, MoonIcon, SunIcon, TagIcon, LayoutDashboard, DropletsIcon } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 export const Header: React.FC = () => {
@@ -51,6 +51,7 @@ export const Header: React.FC = () => {
     ];
     navItems = [...baseNavItems];
     if (isOwnerOrManager) {
+      navItems.splice(4, 0, { to: "/admin/wash-methods", label: "PP Giặt", icon: <DropletsIcon size={20}/> });
       navItems.push({ to: "/admin/promotions", label: "Khuyến mãi", icon: <TagIcon size={20}/> });
       navItems.push({ to: "/admin/settings", label: "Cài đặt C.Hàng", icon: <SettingsIcon size={20}/> });
       navItems.push({ to: "/admin/users", label: "Người dùng C.Hàng", icon: <UserCogIcon size={20}/> });
@@ -78,7 +79,7 @@ export const Header: React.FC = () => {
                 className="flex items-center text-xl font-bold text-text-heading hover:opacity-80 transition-opacity"
               >
                 <img 
-                  src="https://img.upanh.tv/2025/06/06/Megamat.png" 
+                  src="pictures/megamat-logo.png" 
                   alt="Megamat Logo" 
                   className="h-8 w-8 mr-2 rounded-md object-contain"
                 /> 

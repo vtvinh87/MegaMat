@@ -1,12 +1,16 @@
 
+
+
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
 import { CustomerHomePage } from './pages/public/CustomerHomePage'; // Changed to named import
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import OrderListPage from './pages/admin/OrderListPage';
-import OrderCreatePage from './pages/admin/OrderCreatePage';
-import OrderDetailPage from './pages/admin/OrderDetailPage';
+// FIX: Changed to named import as the component is now a named export.
+import { OrderCreatePage } from './pages/admin/OrderCreatePage';
+// FIX: Changed to named import as the component is now a named export.
+import { OrderDetailPage } from './pages/admin/OrderDetailPage';
 import CustomerManagementPage from './pages/admin/CustomerManagementPage';
 import ServiceManagementPage from './pages/admin/ServiceManagementPage';
 import SupplierManagementPage from './pages/admin/SupplierManagementPage';
@@ -25,6 +29,7 @@ import PromotionManagementPage from './pages/admin/PromotionManagementPage'; // 
 import PromotionAnalyticsPage from './pages/admin/PromotionAnalyticsPage'; // New Import for Analytics
 import CustomerLoginPage from './pages/auth/CustomerLoginPage'; // New Customer Login Page
 import CustomerDashboardPage from './pages/portal/CustomerDashboardPage'; // New Customer Portal Page
+import WashMethodManagementPage from './pages/admin/WashMethodManagementPage'; // New Wash Method Page
 import { useAuth } from './contexts/AuthContext';
 import { UserRole } from './types';
 
@@ -93,9 +98,12 @@ const App: React.FC = () => {
                 <Route path="/admin/users" element={<Navigate to="/admin/dashboard" replace />} />
               )}
               
-              {/* Store Settings: Accessible to Owner, Manager */}
+              {/* Store Settings & Wash Methods: Accessible to Owner, Manager */}
               {isOwnerOrManager && (
-                   <Route path="/admin/settings" element={<StoreSettingsPage />} />
+                   <>
+                     <Route path="/admin/settings" element={<StoreSettingsPage />} />
+                     <Route path="/admin/wash-methods" element={<WashMethodManagementPage />} />
+                   </>
               )}
 
               {/* Promotions Management: Accessible to Owner, Manager, Chairman */}

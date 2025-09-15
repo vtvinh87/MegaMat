@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { User, UserRole, Order, InventoryItem, MaterialOrder, VariableCost, FixedCostItem, Notification, KPI, Promotion } from '../../../types';
+import { User, UserRole, Order, InventoryItem, MaterialOrder, VariableCost, FixedCostItem, Notification, KPI, Promotion, WashMethodDefinition } from '../../../types';
 
 type Props = {
   currentUser: User | null;
@@ -13,6 +13,7 @@ type Props = {
   allNotificationsData: Notification[];
   allKpisData: KPI[];
   promotionsData: Promotion[];
+  washMethodsData: WashMethodDefinition[];
 };
 
 export const useDataFiltering = ({
@@ -27,6 +28,7 @@ export const useDataFiltering = ({
   allNotificationsData,
   allKpisData,
   promotionsData,
+  washMethodsData,
 }: Props) => {
   const filteredData = useMemo(() => {
     if (!currentUser) {
@@ -39,7 +41,8 @@ export const useDataFiltering = ({
         fixedCosts: [], 
         notifications: allNotificationsData.filter(n => !n.userId && !n.ownerId), 
         kpis: [], 
-        promotions: promotionsData // FIX: Allow public homepage to display active promotions
+        promotions: promotionsData, // FIX: Allow public homepage to display active promotions
+        washMethods: [],
       };
     }
 
@@ -59,13 +62,14 @@ export const useDataFiltering = ({
             return order?.customer.id === currentUser.id;
         }), 
         kpis: [], 
-        promotions: [] 
+        promotions: [],
+        washMethods: [],
       };
     }
 
     if (currentUser.role === UserRole.CHAIRMAN) {
       // Chairman sees all data
-      return { orders: allOrdersData, inventory: allInventoryData, materialOrders: allMaterialOrdersData, variableCosts: allVariableCostsData, fixedCosts: allFixedCostsData, notifications: allNotificationsData, kpis: allKpisData, promotions: promotionsData };
+      return { orders: allOrdersData, inventory: allInventoryData, materialOrders: allMaterialOrdersData, variableCosts: allVariableCostsData, fixedCosts: allFixedCostsData, notifications: allNotificationsData, kpis: allKpisData, promotions: promotionsData, washMethods: washMethodsData };
     }
     
     // Owner, Manager, Staff view (data scoped to their store)
@@ -95,7 +99,7 @@ export const useDataFiltering = ({
 
     if (!relevantOwnerId) {
       // User who is not associated with any store yet
-      return { orders: [], inventory: [], materialOrders: [], variableCosts: [], fixedCosts: [], notifications: filteredNotifications, kpis: [], promotions: [] };
+      return { orders: [], inventory: [], materialOrders: [], variableCosts: [], fixedCosts: [], notifications: filteredNotifications, kpis: [], promotions: [], washMethods: [] };
     }
     
     return {
@@ -107,8 +111,9 @@ export const useDataFiltering = ({
         notifications: filteredNotifications,
         kpis: allKpisData.filter(k => k.ownerId === relevantOwnerId),
         promotions: promotionsData.filter(p => p.ownerId === relevantOwnerId || p.isSystemWide),
+        washMethods: washMethodsData.filter(wm => wm.ownerId === relevantOwnerId),
     };
-  }, [currentUser, currentUserOwnerId, allOrdersData, allInventoryData, allMaterialOrdersData, allVariableCostsData, allFixedCostsData, allNotificationsData, allKpisData, promotionsData, findUsersByManagerId]);
+  }, [currentUser, currentUserOwnerId, allOrdersData, allInventoryData, allMaterialOrdersData, allVariableCostsData, allFixedCostsData, allNotificationsData, allKpisData, promotionsData, washMethodsData, findUsersByManagerId]);
 
   return filteredData;
 };

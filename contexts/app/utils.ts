@@ -21,6 +21,7 @@ export const PROMOTIONS_KEY = `${STORAGE_PREFIX}promotions`;
 export const ACKNOWLEDGED_SYSTEM_PROMOS_KEY = `${STORAGE_PREFIX}acknowledgedSystemPromos`;
 export const ACKNOWLEDGED_CANCEL_REQUESTS_KEY = `${STORAGE_PREFIX}acknowledgedCancelRequests`;
 export const ACKNOWLEDGED_OPT_OUT_REQUESTS_KEY = `${STORAGE_PREFIX}acknowledgedOptOutRequests`;
+export const WASH_METHODS_KEY = `${STORAGE_PREFIX}washMethods`;
 export const CURRENT_USER_KEY = `${STORAGE_PREFIX}currentUser`;
 export const THEME_KEY = `${STORAGE_PREFIX}theme`;
 

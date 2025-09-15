@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useData } from '../../../contexts/DataContext';
 // FIX: Replaced deprecated `Customer` type with `User`.
@@ -93,6 +94,8 @@ export const AIAssistantTab: React.FC<AIAssistantTabProps> = ({ loggedInCustomer
     storeProfiles, 
     findOrder: findOrderById,
     promotions,
+    // FIX: Get washMethods from context to pass to the confirmation modal.
+    washMethods,
   } = useData();
   const customers = useMemo(() => users.filter(u => u.role === UserRole.CUSTOMER), [users]);
 
@@ -490,6 +493,8 @@ ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."
           // FIX: Changed prop from `addCustomer` to `addUser`.
           addUser={systemAddUser} 
           targetStoreOwnerId={targetStoreOwnerIdForAI}
+          // FIX: Pass washMethods to the modal.
+          washMethods={washMethods}
         />
       )}
     </>

@@ -2,7 +2,7 @@ import React, { useState, useMemo, ChangeEvent, FormEvent, useCallback } from 'r
 import { Link } from 'react-router-dom';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { Promotion, UserRole, Order, User, ServiceItem, WashMethod } from '../../types';
+import { Promotion, UserRole, Order, User, ServiceItem, WashMethodDefinition } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -11,7 +11,6 @@ import { Modal } from '../../components/ui/Modal';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Spinner } from '../../components/ui/Spinner';
 import { PlusCircleIcon, EditIcon, Trash2Icon, SearchIcon, TagIcon, Percent, DollarSign, Calendar, AlertTriangle, CheckCircle, XCircle, BarChart2, TrendingUp, Users, SparklesIcon, Building, ShieldCheck, ShieldAlert, ShieldOff, BanIcon, HelpCircleIcon, Settings2Icon, DropletsIcon, MegaphoneIcon } from 'lucide-react';
-import { WASH_METHOD_OPTIONS } from '../../constants';
 
 
 // Generic Reason Modal Component
@@ -265,7 +264,7 @@ const getVietnameseEvents = (month: number): string => { // month is 0-indexed
 };
 
 const PromotionManagementPage: React.FC = () => {
-  const { promotions, addPromotion, updatePromotion, deletePromotion, orders, users, requestPromotionOptOut, respondToOptOutRequest, requestPromotionCancellation, respondToCancellationRequest, addNotification, services } = useData();
+  const { promotions, addPromotion, updatePromotion, deletePromotion, orders, users, requestPromotionOptOut, respondToOptOutRequest, requestPromotionCancellation, respondToCancellationRequest, addNotification, services, washMethods } = useData();
   const { currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -389,7 +388,12 @@ const PromotionManagementPage: React.FC = () => {
     
     const now = new Date();
     const eventContext = getVietnameseEvents(now.getMonth());
-    const serviceListText = services.map(s => `ID: ${s.id}, Tên: ${s.name}, PP Giặt: ${s.washMethod}`).join('; ');
+    const serviceListText = services.map(s => {
+      const washMethodName = washMethods.find(wm => wm.id === s.washMethodId)?.name || 'N/A';
+      return `ID: ${s.id}, Tên: ${s.name}, PP Giặt: ${washMethodName}`;
+    }).join('; ');
+    const washMethodListText = washMethods.map(wm => `ID: ${wm.id}, Tên: ${wm.name}`).join('; ');
+
 
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -416,11 +420,11 @@ const PromotionManagementPage: React.FC = () => {
                       nullable: true,
                       items: { type: Type.STRING }
                   },
-                  applicableWashMethods: {
+                  applicableWashMethodIds: {
                       type: Type.ARRAY,
-                      description: 'Mảng các phương pháp giặt được áp dụng. CHỈ dùng khi mục tiêu liên quan đến PP giặt. Nếu không, bỏ trống.',
+                      description: 'Mảng các ID phương pháp giặt được áp dụng. CHỈ dùng khi mục tiêu liên quan đến PP giặt. Nếu không, bỏ trống.',
                       nullable: true,
-                      items: { type: Type.STRING, enum: Object.values(WashMethod) }
+                      items: { type: Type.STRING }
                   },
                   applicableChannels: {
                       type: Type.ARRAY,
@@ -439,13 +443,13 @@ const PromotionManagementPage: React.FC = () => {
         - ${revenueInsight}
         - Sự kiện trong tháng: ${eventContext}
         - Danh sách dịch vụ có sẵn: ${serviceListText}
-        - Các phương pháp giặt có sẵn: ${Object.values(WashMethod).join(', ')}
+        - Danh sách phương pháp giặt có sẵn: ${washMethodListText}
         - Các kênh bán hàng: online (khách tự đặt), instore (nhân viên tạo tại cửa hàng).
 
         Lưu ý quan trọng:
         - Nếu mục tiêu liên quan đến ngày cụ thể (ví dụ: 'tăng doanh thu cuối tuần'), hãy sử dụng trường 'applicableDaysOfWeek'. Cuối tuần là [0, 6]. Thứ 3 và 5 là [2, 4].
         - Nếu mục tiêu liên quan đến dịch vụ (ví dụ: 'giặt khô', 'giặt vest'), hãy tìm ID dịch vụ tương ứng từ danh sách và dùng 'applicableServiceIds'.
-        - Nếu mục tiêu liên quan đến phương pháp giặt (ví dụ: 'giặt ướt'), hãy dùng 'applicableWashMethods'.
+        - Nếu mục tiêu liên quan đến phương pháp giặt (ví dụ: 'giặt ướt'), hãy tìm ID phương pháp giặt tương ứng và dùng 'applicableWashMethodIds'.
         - Nếu mục tiêu là khuyến khích đặt hàng online, hãy dùng 'applicableChannels' với giá trị ["online"].
         - Nếu không liên quan, KHÔNG sử dụng các trường điều kiện trên.
         - Đa dạng hóa các gợi ý (loại giảm giá, giá trị, điều kiện).
@@ -553,7 +557,7 @@ const PromotionManagementPage: React.FC = () => {
       name: '', code: '', type: 'discount_voucher', discountType: 'percentage',
       discountValue: 10, isActive: true, minOrderAmount: undefined, maxDiscountAmount: undefined,
       usageLimit: undefined, usageLimitPerCustomer: 1, isSystemWide: false, applicableDaysOfWeek: [], 
-      applicableServiceIds: [], applicableWashMethods: [], applicableChannels: []
+      applicableServiceIds: [], applicableWashMethodIds: [], applicableChannels: []
     }) : { ...promotion });
     setIsModalOpen(true);
   };
@@ -580,7 +584,7 @@ const PromotionManagementPage: React.FC = () => {
       endDate: currentPromotion.endDate ? new Date(currentPromotion.endDate) : undefined,
       applicableDaysOfWeek: currentPromotion.applicableDaysOfWeek?.length ? currentPromotion.applicableDaysOfWeek : undefined,
       applicableServiceIds: currentPromotion.applicableServiceIds?.length ? currentPromotion.applicableServiceIds : undefined,
-      applicableWashMethods: currentPromotion.applicableWashMethods?.length ? currentPromotion.applicableWashMethods : undefined,
+      applicableWashMethodIds: currentPromotion.applicableWashMethodIds?.length ? currentPromotion.applicableWashMethodIds : undefined,
       applicableChannels: currentPromotion.applicableChannels?.length ? currentPromotion.applicableChannels : undefined,
       minOrderAmount: currentPromotion.minOrderAmount ? Number(currentPromotion.minOrderAmount) : undefined,
       maxDiscountAmount: currentPromotion.maxDiscountAmount ? Number(currentPromotion.maxDiscountAmount) : undefined,
@@ -615,13 +619,13 @@ const PromotionManagementPage: React.FC = () => {
       setCurrentPromotion({ ...currentPromotion, applicableServiceIds: newIds });
   };
 
-  const handleWashMethodChange = (washMethod: WashMethod) => {
+  const handleWashMethodChange = (washMethodId: string) => {
       if (!currentPromotion) return;
-      const currentMethods = currentPromotion.applicableWashMethods || [];
-      const newMethods = currentMethods.includes(washMethod)
-        ? currentMethods.filter(m => m !== washMethod)
-        : [...currentMethods, washMethod];
-      setCurrentPromotion({ ...currentPromotion, applicableWashMethods: newMethods });
+      const currentMethods = currentPromotion.applicableWashMethodIds || [];
+      const newMethods = currentMethods.includes(washMethodId)
+        ? currentMethods.filter(m => m !== washMethodId)
+        : [...currentMethods, washMethodId];
+      setCurrentPromotion({ ...currentPromotion, applicableWashMethodIds: newMethods });
   };
   
   const handleChannelChange = (channel: 'online' | 'instore') => {
@@ -760,16 +764,16 @@ const PromotionManagementPage: React.FC = () => {
              <fieldset className="border border-border-base rounded-md p-3">
                 <legend className="text-sm font-medium text-text-muted px-1 flex items-center"><Settings2Icon size={14} className="mr-1.5" /> Điều kiện Dịch vụ</legend>
                 <p className="text-xs text-text-muted mb-2">Để trống để áp dụng cho tất cả dịch vụ.</p>
-                {currentPromotion.applicableWashMethods && currentPromotion.applicableWashMethods.length > 0 && (
+                {currentPromotion.applicableWashMethodIds && currentPromotion.applicableWashMethodIds.length > 0 && (
                     <p className="text-xs text-status-warning-text p-2 bg-status-warning-bg rounded-md mb-2">
                         Không thể chọn điều kiện Dịch vụ khi đã chọn điều kiện Phương pháp Giặt.
                     </p>
                 )}
                 <div className="max-h-32 overflow-y-auto space-y-1 p-2 bg-bg-subtle rounded-md">
                     {services.map(service => (
-                        <label key={service.id} className={`flex items-center space-x-2 p-1 hover:bg-bg-surface rounded ${!!currentPromotion.applicableWashMethods?.length ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
-                            <input type="checkbox" checked={currentPromotion.applicableServiceIds?.includes(service.id) || false} onChange={() => handleServiceIdChange(service.id)} className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary-focus" disabled={!!currentPromotion.applicableWashMethods?.length} />
-                            <span className="text-sm">{service.name} ({service.washMethod})</span>
+                        <label key={service.id} className={`flex items-center space-x-2 p-1 hover:bg-bg-surface rounded ${!!currentPromotion.applicableWashMethodIds?.length ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                            <input type="checkbox" checked={currentPromotion.applicableServiceIds?.includes(service.id) || false} onChange={() => handleServiceIdChange(service.id)} className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary-focus" disabled={!!currentPromotion.applicableWashMethodIds?.length} />
+                            <span className="text-sm">{service.name} ({washMethods.find(wm => wm.id === service.washMethodId)?.name})</span>
                         </label>
                     ))}
                 </div>
@@ -784,10 +788,10 @@ const PromotionManagementPage: React.FC = () => {
                     </p>
                 )}
                 <div className="flex flex-wrap gap-x-4 gap-y-2 p-2">
-                    {WASH_METHOD_OPTIONS.map(option => (
-                        <label key={option.value} className={`flex items-center space-x-2 ${!!currentPromotion.applicableServiceIds?.length ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
-                            <input type="checkbox" checked={currentPromotion.applicableWashMethods?.includes(option.value) || false} onChange={() => handleWashMethodChange(option.value)} className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary-focus" disabled={!!currentPromotion.applicableServiceIds?.length} />
-                            <span className="text-sm">{option.label}</span>
+                    {washMethods.map(method => (
+                        <label key={method.id} className={`flex items-center space-x-2 ${!!currentPromotion.applicableServiceIds?.length ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                            <input type="checkbox" checked={currentPromotion.applicableWashMethodIds?.includes(method.id) || false} onChange={() => handleWashMethodChange(method.id)} className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary-focus" disabled={!!currentPromotion.applicableServiceIds?.length} />
+                            <span className="text-sm">{method.name}</span>
                         </label>
                     ))}
                 </div>

@@ -43,7 +43,7 @@ const LoginPage: React.FC = () => {
         >
           <div className="text-center">
             <img
-                src="https://img.upanh.tv/2025/06/06/Megamat.png"
+                src="pictures/megamat-logo.png"
                 alt={`${APP_NAME} Logo`}
                 className="mx-auto h-16 w-auto mb-4 rounded-lg object-contain"
             />

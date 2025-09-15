@@ -4,18 +4,16 @@ import React, { useState, useMemo, ChangeEvent, FormEvent } from 'react';
 // FIX: Replaced useAppContext with useData and useAuth
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { ServiceItem, WashMethod, UserRole, InventoryItem } from '../../types';
+import { ServiceItem, UserRole, InventoryItem } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { WASH_METHOD_OPTIONS } from '../../constants';
 import { PlusCircleIcon, EditIcon, Trash2Icon, SearchIcon, SparklesIcon, TagIcon, SettingsIcon, DollarSignIcon, ClockIcon, CalendarCheck2Icon, ArchiveIcon } from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
 
 const ServiceManagementPage: React.FC = () => {
   // FIX: Replaced useAppContext with useData and useAuth
-  const { services, addService, updateService, deleteService, inventory } = useData();
+  const { services, addService, updateService, deleteService, inventory, washMethods } = useData();
   const { currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,12 +22,15 @@ const ServiceManagementPage: React.FC = () => {
 
   const canManageServices = currentUser && (currentUser.role === UserRole.OWNER || currentUser.role === UserRole.MANAGER);
 
+  const washMethodOptions = useMemo(() => washMethods.map(wm => ({ value: wm.id, label: wm.name })), [washMethods]);
+
   const filteredServices = useMemo(() => {
-    return services.filter(service =>
-      service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.washMethod.toLowerCase().includes(searchTerm.toLowerCase())
-    ).sort((a,b) => a.name.localeCompare(b.name));
-  }, [services, searchTerm]);
+    return services.filter(service => {
+        const washMethod = washMethods.find(wm => wm.id === service.washMethodId);
+        return service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               washMethod?.name.toLowerCase().includes(searchTerm.toLowerCase());
+    }).sort((a,b) => a.name.localeCompare(b.name));
+  }, [services, searchTerm, washMethods]);
   
   const inventoryOptions = useMemo(() => 
     inventory.map(item => ({
@@ -45,7 +46,7 @@ const ServiceManagementPage: React.FC = () => {
     setCurrentService(mode === 'add' ? { 
       name: '', 
       unit: 'Cái', 
-      washMethod: WashMethod.WET_WASH, 
+      washMethodId: washMethods.length > 0 ? washMethods[0].id : '', 
       price: 0, 
       minPrice: undefined, 
       estimatedTimeHours: 1,
@@ -62,7 +63,7 @@ const ServiceManagementPage: React.FC = () => {
 
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
-    if (!currentService || !currentService.name || !currentService.unit || !currentService.washMethod || 
+    if (!currentService || !currentService.name || !currentService.unit || !currentService.washMethodId || 
         currentService.price === undefined || currentService.estimatedTimeHours === undefined || currentService.customerReturnTimeHours === undefined) {
       alert('Vui lòng điền đầy đủ thông tin dịch vụ, bao gồm tên, đơn vị, phương pháp, giá và các thông số thời gian.');
       return;
@@ -99,7 +100,7 @@ const ServiceManagementPage: React.FC = () => {
     const serviceData = {
       name: currentService.name,
       unit: currentService.unit,
-      washMethod: currentService.washMethod,
+      washMethodId: currentService.washMethodId,
       price: Number(currentService.price),
       minPrice: currentService.minPrice !== undefined && currentService.minPrice !== null && currentService.minPrice.toString().trim() !== '' ? Number(currentService.minPrice) : undefined,
       estimatedTimeHours: Number(currentService.estimatedTimeHours),
@@ -205,7 +206,7 @@ const ServiceManagementPage: React.FC = () => {
                 <tr key={service.id} className="hover:bg-bg-surface-hover dark:hover:bg-slate-700/60 transition-colors">
                   <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-text-heading">{service.name}</td>
                   <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{service.unit}</td>
-                  <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{service.washMethod}</td>
+                  <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{washMethods.find(wm => wm.id === service.washMethodId)?.name || 'N/A'}</td>
                   <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body text-right">{service.price.toLocaleString('vi-VN')}</td>
                   <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body text-right">{service.minPrice ? service.minPrice.toLocaleString('vi-VN') : '-'}</td>
                   <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body text-center">{service.estimatedTimeHours} giờ</td>
@@ -244,13 +245,15 @@ const ServiceManagementPage: React.FC = () => {
                 <Input label="Đơn vị tính*" name="unit" value={currentService.unit || ''} onChange={handleInputChange} placeholder="VD: Cái, Kg, Bộ" required className="mt-3"/>
                 <Select
                   label="Phương pháp giặt*"
-                  name="washMethod"
-                  options={WASH_METHOD_OPTIONS}
-                  value={currentService.washMethod || WashMethod.WET_WASH}
+                  name="washMethodId"
+                  options={washMethodOptions}
+                  value={currentService.washMethodId || ''}
                   onChange={handleInputChange}
                   required
                   wrapperClassName="mt-3"
+                  disabled={washMethodOptions.length === 0}
                 />
+                 {washMethodOptions.length === 0 && <p className="text-xs text-text-muted mt-1">Chưa có phương pháp giặt nào. Vui lòng thêm trong trang 'Quản lý PP Giặt'.</p>}
                 <Input label="Giá (VNĐ)*" name="price" type="number" min="0" step="1000" value={currentService.price ?? ''} onChange={handleInputChange} required className="mt-3"/>
                 <Input label="Giá tối thiểu (VNĐ)" name="minPrice" type="number" min="0" step="1000" value={currentService.minPrice ?? ''} onChange={handleInputChange} placeholder="Để trống hoặc 0 nếu không có" className="mt-3"/>
                 <Input label="Thời gian xử lý (giờ)*" name="estimatedTimeHours" type="number" min="0" step="0.5" value={currentService.estimatedTimeHours ?? ''} onChange={handleInputChange} required className="mt-3"/>

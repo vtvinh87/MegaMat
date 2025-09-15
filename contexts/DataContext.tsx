@@ -6,7 +6,7 @@ import {
     Notification, VariableCost, FixedCostItem, FixedCostUpdateHistoryEntry, 
     ServiceRating, StaffRating, Tip, KPI, StoreProfile, StoreUpdateHistoryEntry, Promotion,
     // FIX: Imported missing MaterialItemDefinition type and removed Customer
-    Theme, UserRole, VariableCostInput, KpiPeriodType, MaterialItemDefinition
+    Theme, UserRole, VariableCostInput, KpiPeriodType, MaterialItemDefinition, WashMethodDefinition
 } from '../types';
 
 // This mirrors the AppContextType but without auth fields
@@ -35,6 +35,7 @@ export interface DataContextType {
   acknowledgedSystemPromos: { [ownerId: string]: string[] };
   acknowledgedCancelRequests: { [ownerId: string]: string[] };
   acknowledgedOptOutRequests: { [chairmanId: string]: string[] };
+  washMethods: WashMethodDefinition[];
   activePublicCustomerId: string | null;
   setActivePublicCustomerId: (customerId: string | null) => void;
 
@@ -90,6 +91,9 @@ export interface DataContextType {
   acknowledgeSystemPromo: (promotionId: string) => void;
   acknowledgeCancelRequest: (promotionId: string) => void;
   acknowledgeOptOutRequest: (promotionId: string, storeOwnerId: string) => void;
+  addWashMethod: (methodData: Omit<WashMethodDefinition, 'id' | 'ownerId'>) => void;
+  updateWashMethod: (method: WashMethodDefinition) => void;
+  deleteWashMethod: (methodId: string) => void;
   getCurrentUserOwnerId: () => string | null;
   getOwnerIdForUser: (userId: string, allUsers: User[]) => string | null;
 }

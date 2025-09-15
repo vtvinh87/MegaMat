@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom'; // Added useLocation
 // FIX: Replaced useAppContext with useData and useAuth
@@ -59,12 +60,12 @@ const ReasonModal: React.FC<ReasonModalProps> = ({ isOpen, onClose, onConfirm, t
 };
 
 
-const OrderDetailPage: React.FC = () => {
+export const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation(); 
   // FIX: Replaced useAppContext with useData and useAuth
-  const { orders, updateOrder, addNotification, users, notifications: contextNotifications, getStaffForOrderActions, findStoreProfileByOwnerId, promotions } = useData(); 
+  const { orders, updateOrder, addNotification, users, notifications: contextNotifications, getStaffForOrderActions, findStoreProfileByOwnerId, promotions, washMethods } = useData(); 
   const { currentUser } = useAuth();
   
   const [order, setOrder] = useState<Order | null>(null);
@@ -252,284 +253,169 @@ const performStatusUpdate = (newStatus: OrderStatus, reason?: string) => {
     if (!order) return;
     performStatusUpdate(newStatus);
   };
-
+  
   const handleSavePickupLocation = () => {
-    if (!order || !currentUser || (order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.PROCESSING)) { 
-        addNotification({ message: 'Chỉ có thể cập nhật vị trí khi đơn hàng đang xử lý hoặc đã xử lý xong.', type: 'warning'});
+    if (!order || !currentUser || !selectedPickupLocation) {
+        addNotification({ message: 'Lỗi: Không có đơn hàng hoặc vị trí được chọn.', type: 'error', showToast: true });
         return;
-    }
-    if (!selectedPickupLocation) {
-      addNotification({ message: 'Vui lòng chọn một vị trí để đồ.', type: 'warning'});
-      return;
     }
     
     if (order.pickupLocation === selectedPickupLocation) {
-        addNotification({ message: 'Vị trí để đồ không thay đổi.', type: 'info'});
+        addNotification({ message: 'Vị trí không thay đổi.', type: 'info', showToast: true });
         return;
     }
 
-    const confirmSave = (reason: string) => {
-        if (!order || !currentUser) return; 
-        const updatedOrder = { ...order, pickupLocation: selectedPickupLocation };
-        
-        let actingStaffId: string | undefined = currentUser.id;
+    const reason = `Thay đổi vị trí từ "${order.pickupLocation || 'chưa có'}" thành "${selectedPickupLocation}".`;
 
-        const newScanEntry: ScanHistoryEntry = {
-            timestamp: new Date(),
-            action: `Cập nhật vị trí để đồ thành: ${selectedPickupLocation}.`,
-            staffUserId: actingStaffId,
-            scannedBy: currentUser.role || 'Hệ thống',
-            reason: reason
-        };
-        updatedOrder.scanHistory = [...(order.scanHistory || []), newScanEntry];
-        updateOrder(updatedOrder);
-        setOrder(updatedOrder);
-        addNotification({ message: `Đã cập nhật vị trí để đồ cho đơn ${order.id} thành ${selectedPickupLocation}.`, type: 'info' });
-        closeReasonModal();
+    const updatedOrder: Order = {
+        ...order,
+        pickupLocation: selectedPickupLocation,
+        scanHistory: [
+            ...(order.scanHistory || []),
+            {
+                timestamp: new Date(),
+                action: 'Cập nhật vị trí để đồ thủ công.',
+                staffUserId: currentUser.id,
+                scannedBy: currentUser.role,
+                reason: reason
+            }
+        ]
     };
-    
-    if (currentUser.role === UserRole.STAFF || currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.OWNER) {
-        openReasonModal(
-            'Xác nhận lưu vị trí để đồ',
-            confirmSave,
-            `Cập nhật vị trí cho đơn hàng ${order.id} từ "${order.pickupLocation || 'Chưa có'}" thành "${selectedPickupLocation}". Vui lòng nhập lý do (nếu có, hoặc '-' nếu không có lý do cụ thể).`
-        );
-    } else {
-        confirmSave("Cập nhật vị trí bởi người dùng không thuộc nhóm quản trị."); 
-    }
+    updateOrder(updatedOrder);
+    setOrder(updatedOrder);
+    addNotification({ message: `Đã cập nhật vị trí cho đơn hàng ${order.id}.`, type: 'success', showToast: true });
   };
-  
+
+
   if (!order) {
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[300px] text-text-muted">
-            <ZapIcon className="animate-pulse h-12 w-12 text-brand-primary mb-4"/>
-            <p>Đang tải chi tiết đơn hàng...</p>
-        </div>
-    );
+    return <Card title="Đang tải..."><p>Đang tìm thông tin đơn hàng...</p></Card>;
   }
-  
+
+  const { pickupStaff, returnStaff } = getStaffForOrderActions(order.id);
   const statusStyle = getStatusInfo(order.status);
-  const canPerformActions = currentUser && (currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.OWNER || currentUser.role === UserRole.STAFF);
+  const canUpdateStatus = currentUser?.role !== UserRole.CUSTOMER && order.status !== OrderStatus.RETURNED && order.status !== OrderStatus.CANCELLED;
+  const canEditOrder = (currentUser?.role === UserRole.OWNER || currentUser?.role === UserRole.MANAGER || currentUser?.role === UserRole.STAFF) && (order.status === OrderStatus.PENDING || order.status === OrderStatus.WAITING_FOR_CONFIRMATION);
+  const DetailItem: React.FC<{ label: string; children: React.ReactNode; className?: string; dtClassName?: string; ddClassName?: string }> =
+    ({ label, children, className = '', dtClassName = '', ddClassName = '' }) => (
+      <div className={`py-3 sm:grid sm:grid-cols-3 sm:gap-4 items-center ${className}`}>
+        <dt className={`text-sm font-medium text-text-muted ${dtClassName}`}>{label}</dt>
+        <dd className={`mt-1 text-sm text-text-body sm:mt-0 sm:col-span-2 ${ddClassName}`}>{children}</dd>
+      </div>
+    );
 
-
-  const DetailItem: React.FC<{label: string; children: React.ReactNode; className?: string; dtClassName?: string; ddClassName?: string}> = 
-    ({label, children, className, dtClassName, ddClassName}) => (
-    <div className={`py-3 sm:grid sm:grid-cols-3 sm:gap-4 items-center ${className}`}>
-      <dt className={`text-sm font-medium text-text-muted ${dtClassName}`}>{label}</dt>
-      <dd className={`mt-1 text-sm text-text-body sm:mt-0 sm:col-span-2 ${ddClassName}`}>{children}</dd>
-    </div>
-  );
-  
-  const finalAmountToPay = subtotal - (order.loyaltyDiscountAmount || 0) - (order.promotionDiscountAmount || 0);
 
   return (
     <div className="space-y-6">
-      <Button variant="link" onClick={() => navigate('/admin/orders')} className="text-text-link hover:text-brand-primary-hover mb-0 pl-0 -mt-2">
-        <ArrowLeftIcon size={18} className="mr-1.5"/> Quay lại Danh sách Đơn hàng
+      <Button variant="link" onClick={() => navigate(location.state?.from || '/admin/orders')} className="text-text-link hover:text-brand-primary-hover mb-0 pl-0 -mt-2">
+        <ArrowLeftIcon size={18} className="mr-1.5" /> Quay lại danh sách
       </Button>
 
-      {order.status === OrderStatus.WAITING_FOR_CONFIRMATION && (
-        <Card className="mb-6 !bg-purple-50 border-l-4 border-purple-500">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-start">
-                    <MessageSquareIcon className="h-6 w-6 text-purple-600 mr-3 flex-shrink-0 mt-1"/>
-                    <div>
-                        <h3 className="font-semibold text-purple-800">Cần Xác Nhận</h3>
-                        <p className="text-sm text-purple-700">Đơn hàng này được tạo bởi khách hàng và cần được nhân viên gọi điện xác nhận lại thông tin (dịch vụ, số lượng,...) trước khi xử lý.</p>
-                    </div>
-                </div>
-                <Button onClick={() => navigate(`/admin/orders/edit/${order.id}`)} className="w-full sm:w-auto flex-shrink-0">
-                    Xác nhận / Sửa đổi
-                </Button>
-            </div>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left Column: Main Details */}
-        <div className="lg:col-span-3 space-y-6">
-          <Card 
-            title={`Đơn hàng: ${order.id}`}
-            titleClassName="!text-2xl !font-bold"
-            headerClassName="border-b-0 pb-0"
-            contentClassName="!pt-2"
-          >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2 space-y-6">
+          <Card title={`Chi tiết Đơn hàng: ${order.id}`} titleClassName="!text-2xl !font-bold">
             <dl className="divide-y divide-border-base">
-              <DetailItem label="Trạng thái:">
-                <span className={`font-semibold px-2.5 py-1 rounded-full text-xs inline-flex items-center ${statusStyle.bgColor} ${statusStyle.textColor} border ${statusStyle.borderColor}`}>
-                  {statusStyle.icon}{statusStyle.text}
-                </span>
+              <DetailItem label="Khách hàng"><span className="font-medium">{order.customer.name}</span> - {order.customer.phone}</DetailItem>
+              <DetailItem label="Trạng thái">
+                <span className={`font-semibold px-2.5 py-1 rounded-full text-xs inline-flex items-center ${statusStyle.bgColor} ${statusStyle.textColor} border ${statusStyle.borderColor}`}>{statusStyle.icon}{statusStyle.text}</span>
               </DetailItem>
-              <DetailItem label="Ngày tạo:">{new Date(order.createdAt).toLocaleString('vi-VN', { dateStyle: 'long', timeStyle: 'short' })}</DetailItem>
-              {order.receivedAt && <DetailItem label="Thời gian nhận đồ:">{new Date(order.receivedAt).toLocaleString('vi-VN', {dateStyle: 'long', timeStyle: 'short'})}</DetailItem>}
+              <DetailItem label="Ngày tạo">{new Date(order.createdAt).toLocaleString('vi-VN', { dateStyle: 'long', timeStyle: 'short' })}</DetailItem>
+              {order.receivedAt && <DetailItem label="Ngày nhận đồ">{new Date(order.receivedAt).toLocaleString('vi-VN', { dateStyle: 'long', timeStyle: 'short' })}</DetailItem>}
+              {order.estimatedCompletionTime && <DetailItem label="Dự kiến trả">{new Date(order.estimatedCompletionTime).toLocaleString('vi-VN', { dateStyle: 'long', timeStyle: 'short' })} ({getRemainingTime(order.estimatedCompletionTime)})</DetailItem>}
+              {order.completedAt && <DetailItem label="Ngày hoàn thành/trả">{new Date(order.completedAt).toLocaleString('vi-VN', { dateStyle: 'long', timeStyle: 'short' })}</DetailItem>}
+              {pickupStaff && <DetailItem label="Nhân viên nhận đồ">{pickupStaff.name}</DetailItem>}
+              {returnStaff && <DetailItem label="Nhân viên trả đồ">{returnStaff.name}</DetailItem>}
               
-              {(order.status === OrderStatus.PROCESSING || order.status === OrderStatus.PENDING) && order.estimatedCompletionTime && (
-                <DetailItem label="Dự kiến xử lý xong/trả:">
-                  {new Date(order.estimatedCompletionTime).toLocaleString('vi-VN', { dateStyle: 'long', timeStyle: 'short' })}
-                  {order.status === OrderStatus.PROCESSING && ` (còn ${getRemainingTime(order.estimatedCompletionTime)})`}
-                </DetailItem>
+              <DetailItem label="Tạm tính" ddClassName="text-right">{subtotal.toLocaleString('vi-VN')} VNĐ</DetailItem>
+              {appliedPromotion && (
+                <DetailItem label={`Khuyến mãi (${appliedPromotion.code})`} ddClassName="text-right text-status-success-text">- {order.promotionDiscountAmount?.toLocaleString('vi-VN')} VNĐ</DetailItem>
               )}
-
-              {(order.status === OrderStatus.COMPLETED || order.status === OrderStatus.RETURNED) && order.completedAt && <DetailItem label="Thời gian hoàn thành/trả đồ:">{new Date(order.completedAt).toLocaleString('vi-VN', {dateStyle: 'long', timeStyle: 'short'})}</DetailItem>}
-              {order.pickupLocation && <DetailItem label="Vị trí để đồ:"><span className="flex items-center"><MapPinIcon size={16} className="mr-1.5 text-text-muted"/>{order.pickupLocation}</span></DetailItem>}
-              <DetailItem label="Tổng cộng:">
-                {subtotal.toLocaleString('vi-VN')} VNĐ
-              </DetailItem>
-              {order.loyaltyDiscountAmount && order.loyaltyDiscountAmount > 0 && (
-                <DetailItem label={`Giảm giá (${order.loyaltyPointsRedeemed} điểm):`}>
-                  <span className="text-status-success-text">- {order.loyaltyDiscountAmount.toLocaleString('vi-VN')} VNĐ</span>
-                </DetailItem>
-              )}
-               {order.promotionDiscountAmount && order.promotionDiscountAmount > 0 && (
-                <DetailItem label={`Khuyến mãi (${appliedPromotion?.code || ''}):`}>
-                  <span className="text-status-success-text flex items-center"><TagIcon size={14} className="mr-1.5"/>- {order.promotionDiscountAmount.toLocaleString('vi-VN')} VNĐ</span>
-                </DetailItem>
-              )}
-              <DetailItem label="Khách trả:" ddClassName="!text-2xl !font-bold text-brand-primary">
-                {finalAmountToPay.toLocaleString('vi-VN')} VNĐ
+              <DetailItem label="Tổng cộng" ddClassName="!text-xl !font-semibold text-brand-primary text-right">{order.totalAmount.toLocaleString('vi-VN')} VNĐ</DetailItem>
+              
+              <DetailItem label="Ghi chú chung" dtClassName="self-start pt-3">
+                {order.notes ? <span className="whitespace-pre-wrap">{order.notes}</span> : <span className="italic text-text-muted">Không có</span>}
               </DetailItem>
             </dl>
           </Card>
 
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-text-heading flex items-center"><UsersIcon size={20} className="mr-2 text-brand-primary"/>Thông tin Khách hàng</h3>
+          <Card title="Các dịch vụ trong đơn hàng" icon={<ShoppingCartIcon size={20} className="text-brand-primary" />}>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead><tr><th className="p-2 text-left">Dịch vụ</th><th className="p-2 text-left">PP Giặt</th><th className="p-2 text-center">SL</th><th className="p-2 text-right">Đơn giá</th><th className="p-2 text-right">Thành tiền</th></tr></thead>
+                <tbody>
+                  {order.items.map((item, index) => (
+                    <tr key={index} className="border-b border-border-base last:border-b-0">
+                      <td className="p-2 font-medium">{item.serviceItem.name} {item.notes && <p className="text-xs text-text-muted italic">Ghi chú: {item.notes}</p>}</td>
+                      <td className="p-2">{washMethods.find(wm => wm.id === item.selectedWashMethodId)?.name || 'N/A'}</td>
+                      <td className="p-2 text-center">{item.quantity}</td>
+                      <td className="p-2 text-right">{item.serviceItem.price.toLocaleString('vi-VN')}</td>
+                      <td className="p-2 text-right font-medium">{Math.max(item.serviceItem.price * item.quantity, item.serviceItem.minPrice || 0).toLocaleString('vi-VN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <dl className="divide-y divide-border-base">
-              <DetailItem label="Tên:">{order.customer.name}</DetailItem>
-              <DetailItem label="SĐT:">{order.customer.phone}</DetailItem>
-              <DetailItem label="Điểm tích lũy:">
-                <span className="font-semibold text-amber-600 flex items-center">
-                  <AwardIcon size={16} className="mr-1.5"/> {order.customer.loyaltyPoints.toLocaleString('vi-VN')}
-                </span>
-              </DetailItem>
-              {order.customer.address && <DetailItem label="Địa chỉ:">{order.customer.address}</DetailItem>}
-            </dl>
           </Card>
 
-          <Card>
-            <h3 className="text-lg font-semibold text-text-heading mb-4 flex items-center"><ShoppingCartIcon size={20} className="mr-2 text-brand-primary"/>Danh sách Dịch vụ</h3>
-            <ul className="space-y-4">
-              {order.items.map((item, index) => (
-                <li key={index} className="p-4 border border-border-base rounded-lg bg-bg-subtle/20 hover:shadow-md transition-shadow">
-                  <p className="font-semibold text-text-heading">{item.serviceItem.name} (x{item.quantity} {item.serviceItem.unit})</p>
-                  <div className="text-sm text-text-body mt-1">
-                    <p>Phương pháp: {item.serviceItem.washMethod}</p>
-                    <p>Đơn giá: {item.serviceItem.price.toLocaleString('vi-VN')} VNĐ</p>
+          <Card title="Lịch sử Quét & Thao tác" icon={<FileTextIcon size={20} className="text-brand-primary" />}>
+            <ul className="space-y-3 text-sm max-h-72 overflow-y-auto">
+              {(order.scanHistory || []).map((entry, index) => (
+                <li key={index} className="flex space-x-3 border-b border-border-base/50 pb-2 last:border-b-0">
+                  <div className="text-center flex-shrink-0">
+                    <p className="font-semibold">{new Date(entry.timestamp).toLocaleTimeString('vi-VN')}</p>
+                    <p className="text-xs text-text-muted">{new Date(entry.timestamp).toLocaleDateString('vi-VN')}</p>
                   </div>
-                  {item.notes && <p className="text-xs text-text-muted italic mt-2 pt-2 border-t border-border-base/50">Ghi chú: {item.notes}</p>}
+                  <div>
+                    <p className="font-medium text-text-heading">{entry.action}</p>
+                    <p className="text-xs text-text-muted">Bởi: {entry.scannedBy} {entry.staffUserId && `(${users.find(u => u.id === entry.staffUserId)?.name || 'Không rõ'})`}</p>
+                    {entry.reason && <p className="text-xs text-text-muted italic">Lý do: {entry.reason}</p>}
+                  </div>
                 </li>
               ))}
             </ul>
           </Card>
-
-          {order.scanHistory && order.scanHistory.length > 0 && (
-             <Card>
-                <h3 className="text-lg font-semibold text-text-heading mb-4 flex items-center"><FileTextIcon size={20} className="mr-2 text-brand-primary"/>Lịch sử xử lý</h3>
-                <ul className="space-y-3 text-sm">
-                    {order.scanHistory.map((scan, idx) => (
-                        <li key={idx} className="flex items-start p-2 rounded-md hover:bg-bg-surface-hover">
-                            <ZapIcon size={14} className="mr-2.5 mt-1 text-text-muted flex-shrink-0"/>
-                            <div className="flex-grow">
-                                <span className="text-text-body">{scan.action} {scan.scannedBy && <span className="text-xs text-text-muted">(bởi {scan.scannedBy}{scan.staffUserId ? ` - ID NV: ${scan.staffUserId}` : ''})</span>}</span>
-                                <p className="text-xs text-text-muted">{new Date(scan.timestamp).toLocaleString('vi-VN', { dateStyle: 'medium', timeStyle: 'medium' })}</p>
-                                {scan.reason && (
-                                  <p className="mt-1 text-xs text-brand-primary italic bg-sky-50 p-1.5 rounded flex items-start">
-                                    <MessageSquareIcon size={12} className="mr-1.5 mt-0.5 flex-shrink-0" />
-                                    Lý do: {scan.reason}
-                                  </p>
-                                )}
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-            </Card>
-          )}
         </div>
 
-        {/* Right Column: Actions & QR */}
-        <div className="lg:col-span-2 space-y-6">
-          {canPerformActions && (
-            <Card>
-              <h3 className="text-lg font-semibold text-text-heading mb-4 flex items-center"><Edit3Icon size={20} className="mr-2 text-brand-primary"/>Hành động</h3>
-              <div className="space-y-3">
-                {order.status === OrderStatus.PENDING && (
-                  <Button onClick={() => handleStatusUpdateIntent(OrderStatus.PROCESSING)} className="w-full" leftIcon={<ZapIcon size={18}/>} variant="primary">
-                    Bắt đầu xử lý
-                  </Button>
-                )}
-                {order.status === OrderStatus.PROCESSING && (
-                  <>
-                    <Select
-                      label="Chọn vị trí để đồ"
-                      options={pickupLocations.map(loc => ({ value: loc, label: loc }))}
-                      value={selectedPickupLocation}
-                      onChange={e => setSelectedPickupLocation(e.target.value)}
-                      placeholder="-- Chọn vị trí --"
-                    />
-                    <Button onClick={() => handleStatusUpdateIntent(OrderStatus.COMPLETED)} className="w-full" leftIcon={<CheckCircleIcon size={18}/>} variant="primary" disabled={!selectedPickupLocation}>
-                      Hoàn thành xử lý
-                    </Button>
-                  </>
-                )}
-                {order.status === OrderStatus.COMPLETED && (
-                  <>
-                    <div className="space-y-3">
-                      <Select
-                        label="Cập nhật vị trí để đồ (nếu cần)"
-                        options={pickupLocations.map(loc => ({ value: loc, label: loc }))}
-                        value={selectedPickupLocation}
-                        onChange={e => setSelectedPickupLocation(e.target.value)}
-                      />
-                      <Button onClick={handleSavePickupLocation} className="w-full" leftIcon={<SaveIcon size={18}/>} variant="secondary" disabled={!selectedPickupLocation || selectedPickupLocation === order.pickupLocation}>
-                        Lưu vị trí
-                      </Button>
-                    </div>
-                    <Button onClick={() => handleStatusUpdateIntent(OrderStatus.RETURNED)} className="w-full" leftIcon={<PackageCheckIcon size={18}/>} variant="primary">
-                      Xác nhận Đã Trả Đồ
-                    </Button>
-                  </>
-                )}
-                 {order.status === OrderStatus.WAITING_FOR_CONFIRMATION && (
-                    <p className="text-sm text-center p-3 bg-purple-50 text-purple-800 rounded-md">Vui lòng sử dụng nút "Xác nhận / Sửa đổi" ở trên để tiếp tục.</p>
-                 )}
-                <Button 
-                  variant="secondary" 
-                  className="w-full" 
-                  leftIcon={<PrinterIcon size={18}/>} 
-                  onClick={() => navigate(`/admin/orders/print/${order.id}`)}
-                >
-                  In hóa đơn
-                </Button>
-              </div>
+        <div className="lg:col-span-1 space-y-6">
+          <Card title="Hành động" icon={<SendIcon size={20} className="text-brand-primary" />}>
+            <div className="space-y-3">
+              <Button onClick={() => navigate(`/admin/orders/print/${order.id}`)} variant="primary" className="w-full" leftIcon={<PrinterIcon size={18}/>}>In Hóa đơn</Button>
+              {canEditOrder && <Button onClick={() => navigate(`/admin/orders/edit/${order.id}`)} variant="secondary" className="w-full" leftIcon={<Edit3Icon size={18}/>}>Sửa Đơn hàng</Button>}
+              {canUpdateStatus && order.status === OrderStatus.PENDING && <Button onClick={() => handleStatusUpdateIntent(OrderStatus.PROCESSING)} className="w-full bg-blue-500 hover:bg-blue-600 text-white" leftIcon={<ZapIcon size={18}/>}>Bắt đầu xử lý</Button>}
+              {canUpdateStatus && order.status === OrderStatus.PROCESSING && <Button onClick={() => handleStatusUpdateIntent(OrderStatus.COMPLETED)} className="w-full bg-green-500 hover:bg-green-600 text-white" leftIcon={<CheckCircleIcon size={18}/>}>Hoàn thành xử lý</Button>}
+              {canUpdateStatus && order.status === OrderStatus.COMPLETED && <Button onClick={() => handleStatusUpdateIntent(OrderStatus.RETURNED)} className="w-full bg-indigo-500 hover:bg-indigo-600 text-white" leftIcon={<PackageCheckIcon size={18}/>}>Đã trả đồ cho khách</Button>}
+            </div>
+          </Card>
+
+          {canUpdateStatus && order.status === OrderStatus.COMPLETED && (
+            <Card title="Cập nhật Vị trí" icon={<MapPinIcon size={20} className="text-brand-primary"/>}>
+                <Select
+                    label="Vị trí để đồ"
+                    options={pickupLocations.map(loc => ({value: loc, label: loc}))}
+                    value={selectedPickupLocation}
+                    onChange={(e) => setSelectedPickupLocation(e.target.value)}
+                />
+                <Button onClick={handleSavePickupLocation} className="w-full mt-3" leftIcon={<SaveIcon size={18}/>} disabled={order.pickupLocation === selectedPickupLocation || !selectedPickupLocation}>Lưu Vị trí</Button>
             </Card>
           )}
-          
-          {order.qrCodePaymentUrl && (
-            <Card className="text-center">
-              <h3 className="text-lg font-semibold text-text-heading mb-3 flex items-center justify-center"><DollarSignIcon size={20} className="mr-2 text-brand-primary"/>Mã QR Thanh toán</h3>
-              <QRCodeDisplay value={order.qrCodePaymentUrl.replace(`amount=${order.totalAmount}`, `amount=${finalAmountToPay}`)} size={160} />
-              <p className="text-xs text-text-muted mt-2">Quét để thanh toán {finalAmountToPay.toLocaleString('vi-VN')} VNĐ (Demo)</p>
-            </Card>
-          )}
-          <Card className="text-center">
-            <h3 className="text-lg font-semibold text-text-heading mb-3 flex items-center justify-center"><QrCodeIcon size={20} className="mr-2 text-brand-primary"/>Mã QR Đơn hàng</h3>
-            <QRCodeDisplay value={`ORDER_ID:${order.id},STATUS:${order.status}`} size={160} />
-            <p className="text-xs text-text-muted mt-2">Dùng để cập nhật trạng thái (Demo)</p>
+
+          <Card title="Thanh toán" icon={<QrCodeIcon size={20} className="text-brand-primary" />}>
+            <div className="text-center">
+              {order.qrCodePaymentUrl ? <QRCodeDisplay value={order.qrCodePaymentUrl} size={160}/> : <p>Không có mã QR.</p>}
+              <p className="text-xs text-text-muted mt-2">Mã QR để khách hàng thanh toán.</p>
+            </div>
           </Card>
         </div>
       </div>
+      
       {isReasonModalOpen && reasonModalConfig && (
         <ReasonModal
-            isOpen={isReasonModalOpen}
-            onClose={closeReasonModal}
-            onConfirm={reasonModalConfig.onConfirm}
-            title={reasonModalConfig.title}
-            actionDescription={reasonModalConfig.actionDescription}
+          isOpen={isReasonModalOpen}
+          onClose={closeReasonModal}
+          onConfirm={reasonModalConfig.onConfirm}
+          title={reasonModalConfig.title}
+          actionDescription={reasonModalConfig.actionDescription}
         />
       )}
     </div>
   );
 };
-
-export default OrderDetailPage;

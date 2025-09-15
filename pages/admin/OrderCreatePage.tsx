@@ -4,7 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 // FIX: Replaced deprecated Customer type with User.
-import { User, Order, OrderItem, OrderStatus, ServiceItem as AppServiceItem, UserRole, ScanHistoryEntry, WashMethod, Promotion, PaymentStatus } from '../../types'; // Renamed ServiceItem
+// FIX: Removed WashMethod import as it is deprecated.
+import { User, Order, OrderItem, OrderStatus, ServiceItem as AppServiceItem, UserRole, ScanHistoryEntry, Promotion, PaymentStatus } from '../../types'; // Renamed ServiceItem
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -18,12 +19,12 @@ import { Spinner } from '../../components/ui/Spinner';
 interface LocalOrderItem {
   id: string; 
   serviceNameKey: string; 
-  selectedWashMethod: WashMethod;
+  selectedWashMethodId: string;
   quantity: number;
   notes?: string;
 }
 
-const OrderCreatePage: React.FC = () => {
+export const OrderCreatePage: React.FC = () => {
   const { id: editOrderId } = useParams<{ id?: string }>(); 
   // FIX: Replaced useAppContext with useData and useAuth
   const { 
@@ -38,6 +39,7 @@ const OrderCreatePage: React.FC = () => {
     addNotification,
     getCurrentUserOwnerId,
     findPromotionByCode,
+    washMethods,
   } = useData();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -120,7 +122,7 @@ const OrderCreatePage: React.FC = () => {
         setOrderItems(orderToEdit.items.map(item => ({ 
           id: uuidv4(),
           serviceNameKey: item.serviceItem.name, 
-          selectedWashMethod: item.selectedWashMethod, 
+          selectedWashMethodId: item.selectedWashMethodId, 
           quantity: item.quantity,
           notes: item.notes || '',
         }))); 
@@ -197,21 +199,21 @@ const OrderCreatePage: React.FC = () => {
     }
     const defaultServiceName = uniqueServiceGroupOptions[0].value;
     const servicesWithThisName = appContextServices.filter(s => s.name === defaultServiceName);
-    const defaultWashMethod = servicesWithThisName.length > 0 ? servicesWithThisName[0].washMethod : WashMethod.WET_WASH;
+    const defaultWashMethodId = servicesWithThisName.length > 0 ? servicesWithThisName[0].washMethodId : (washMethods.find(wm => wm.name === "Giặt ướt")?.id || '');
 
     setOrderItems(prev => [
       ...prev,
       { 
         id: uuidv4(),
         serviceNameKey: defaultServiceName, 
-        selectedWashMethod: defaultWashMethod,
+        selectedWashMethodId: defaultWashMethodId,
         quantity: 1, 
         notes: '' 
       }
     ]);
   };
 
-  const handleOrderItemChange = (index: number, field: keyof LocalOrderItem, value: string | number | WashMethod) => {
+  const handleOrderItemChange = (index: number, field: keyof LocalOrderItem, value: string | number) => {
     setOrderItems(prevItems => 
       prevItems.map((item, i) => {
         if (i === index) {
@@ -219,7 +221,7 @@ const OrderCreatePage: React.FC = () => {
           if (field === 'serviceNameKey') {
             const newServiceName = value as string;
             const servicesWithThisName = appContextServices.filter(s => s.name === newServiceName);
-            updatedItem.selectedWashMethod = servicesWithThisName.length > 0 ? servicesWithThisName[0].washMethod : WashMethod.WET_WASH; // Default to first available or WET_WASH
+            updatedItem.selectedWashMethodId = servicesWithThisName.length > 0 ? servicesWithThisName[0].washMethodId : ''; 
           }
           if (field === 'quantity') {
             updatedItem.quantity = Math.max(1, Number(value) || 1);
@@ -237,7 +239,7 @@ const OrderCreatePage: React.FC = () => {
 
   const subtotal = useMemo(() => {
     return orderItems.reduce((sum, localItem) => {
-      const service = appContextServices.find(s => s.name === localItem.serviceNameKey && s.washMethod === localItem.selectedWashMethod);
+      const service = appContextServices.find(s => s.name === localItem.serviceNameKey && s.washMethodId === localItem.selectedWashMethodId);
       if (service) {
         return sum + Math.max(service.price * localItem.quantity, service.minPrice || 0);
       }
@@ -300,7 +302,7 @@ const OrderCreatePage: React.FC = () => {
     }
     if (promotion.applicableServiceIds && promotion.applicableServiceIds.length > 0) {
         const hasApplicableService = orderItems.some(localItem => {
-            const service = appContextServices.find(s => s.name === localItem.serviceNameKey && s.washMethod === localItem.selectedWashMethod);
+            const service = appContextServices.find(s => s.name === localItem.serviceNameKey && s.washMethodId === localItem.selectedWashMethodId);
             return service && promotion.applicableServiceIds!.includes(service.id);
         });
         if (!hasApplicableService) {
@@ -308,9 +310,9 @@ const OrderCreatePage: React.FC = () => {
             return;
         }
     }
-    if (promotion.applicableWashMethods && promotion.applicableWashMethods.length > 0) {
+    if (promotion.applicableWashMethodIds && promotion.applicableWashMethodIds.length > 0) {
         const hasApplicableWashMethod = orderItems.some(localItem => 
-            promotion.applicableWashMethods!.includes(localItem.selectedWashMethod)
+            promotion.applicableWashMethodIds!.includes(localItem.selectedWashMethodId)
         );
         if (!hasApplicableWashMethod) {
             setPromotionError("Mã khuyến mãi này không áp dụng cho phương pháp giặt nào trong đơn hàng của bạn.");
@@ -344,7 +346,7 @@ const OrderCreatePage: React.FC = () => {
     if (orderItems.length === 0) return null;
 
     const maxCustomerReturnTimeHours = Math.max(0, ...orderItems.map(localItem => {
-        const service = appContextServices.find(s => s.name === localItem.serviceNameKey && s.washMethod === localItem.selectedWashMethod);
+        const service = appContextServices.find(s => s.name === localItem.serviceNameKey && s.washMethodId === localItem.selectedWashMethodId);
         return service ? service.customerReturnTimeHours : 0;
     }));
 
@@ -425,15 +427,16 @@ const OrderCreatePage: React.FC = () => {
     const finalOrderItems: OrderItem[] = [];
     let itemMappingError = false;
     orderItems.forEach(localItem => {
-        const service = appContextServices.find(s => s.name === localItem.serviceNameKey && s.washMethod === localItem.selectedWashMethod);
+        const service = appContextServices.find(s => s.name === localItem.serviceNameKey && s.washMethodId === localItem.selectedWashMethodId);
         if (!service) {
-            setGlobalError(`Dịch vụ "${localItem.serviceNameKey}" với phương pháp "${localItem.selectedWashMethod}" không hợp lệ hoặc không tìm thấy. Vui lòng kiểm tra lại.`);
+            const washMethodName = washMethods.find(wm => wm.id === localItem.selectedWashMethodId)?.name || localItem.selectedWashMethodId;
+            setGlobalError(`Dịch vụ "${localItem.serviceNameKey}" với phương pháp "${washMethodName}" không hợp lệ hoặc không tìm thấy. Vui lòng kiểm tra lại.`);
             itemMappingError = true;
             return; 
         }
         finalOrderItems.push({
             serviceItem: service,
-            selectedWashMethod: localItem.selectedWashMethod,
+            selectedWashMethodId: localItem.selectedWashMethodId,
             quantity: localItem.quantity,
             notes: localItem.notes?.trim() || undefined,
         });
@@ -538,10 +541,13 @@ const OrderCreatePage: React.FC = () => {
   const SaveButtonIcon = isEditMode ? SaveIcon : PrinterIcon;
 
   const renderServiceItemRow = (item: LocalOrderItem, index: number) => {
-    const currentSelectedServiceInfo = appContextServices.find(s => s.name === item.serviceNameKey && s.washMethod === item.selectedWashMethod);
+    const currentSelectedServiceInfo = appContextServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
     const washMethodOptionsForSelectedName = appContextServices
         .filter(s => s.name === item.serviceNameKey)
-        .map(s => ({ value: s.washMethod, label: `${s.washMethod} (${s.price.toLocaleString('vi-VN')} VNĐ)`}))
+        .map(s => {
+            const washMethod = washMethods.find(wm => wm.id === s.washMethodId);
+            return { value: s.washMethodId, label: `${washMethod?.name || s.washMethodId} (${s.price.toLocaleString('vi-VN')} VNĐ)`};
+        })
         .filter((option, idx, self) => self.findIndex(o => o.value === option.value) === idx); // Ensure unique wash methods
 
     const lineTotal = currentSelectedServiceInfo ? Math.max(currentSelectedServiceInfo.price * item.quantity, currentSelectedServiceInfo.minPrice || 0) : 0;
@@ -560,9 +566,9 @@ const OrderCreatePage: React.FC = () => {
                 <Select
                     wrapperClassName="md:col-span-3"
                     label="PP Giặt & Giá"
-                    options={washMethodOptionsForSelectedName.length > 0 ? washMethodOptionsForSelectedName : [{value: item.selectedWashMethod, label: item.selectedWashMethod}]}
-                    value={item.selectedWashMethod}
-                    onChange={(e) => handleOrderItemChange(index, 'selectedWashMethod', e.target.value as WashMethod)}
+                    options={washMethodOptionsForSelectedName.length > 0 ? washMethodOptionsForSelectedName : [{value: item.selectedWashMethodId, label: item.selectedWashMethodId}]}
+                    value={item.selectedWashMethodId}
+                    onChange={(e) => handleOrderItemChange(index, 'selectedWashMethodId', e.target.value)}
                     disabled={washMethodOptionsForSelectedName.length === 0}
                 />
                 <Input
@@ -589,9 +595,9 @@ const OrderCreatePage: React.FC = () => {
                 placeholder="VD: Giặt kỹ cổ áo, không tẩy..."
                 className="text-sm py-1.5"
             />
-             {!currentSelectedServiceInfo && item.serviceNameKey && item.selectedWashMethod &&
+             {!currentSelectedServiceInfo && item.serviceNameKey && item.selectedWashMethodId &&
                 <p className="text-xs text-status-danger mt-1">
-                    Không tìm thấy cấu hình giá cho "{item.serviceNameKey}" với phương pháp "{item.selectedWashMethod}". Vui lòng kiểm tra lại.
+                    Không tìm thấy cấu hình giá cho "{item.serviceNameKey}" với phương pháp "{washMethods.find(wm => wm.id === item.selectedWashMethodId)?.name || item.selectedWashMethodId}". Vui lòng kiểm tra lại.
                 </p>
             }
         </div>
@@ -676,125 +682,92 @@ const OrderCreatePage: React.FC = () => {
                     disabled={!!appliedPromotion}
                     wrapperClassName="md:col-span-2"
                 />
-                {appliedPromotion ? (
-                     <Button type="button" variant="secondary" onClick={handleRemoveVoucher}>Hủy mã</Button>
+                 {appliedPromotion ? (
+                    <Button onClick={handleRemoveVoucher} variant="secondary">Hủy mã</Button>
                 ) : (
-                    <Button type="button" onClick={handleApplyVoucher}>Áp dụng</Button>
+                    <Button onClick={handleApplyVoucher}>Áp dụng</Button>
                 )}
             </div>
-            <p className="text-xs text-text-muted mt-1 pl-1">Lưu ý: Chỉ có thể áp dụng một mã khuyến mãi cho mỗi đơn hàng.</p>
             {promotionError && <p className="text-xs text-status-danger mt-1">{promotionError}</p>}
             {appliedPromotion && (
-                <div className="mt-3 p-2 bg-emerald-50 text-emerald-700 rounded-md text-sm border border-emerald-200">
-                    Đang áp dụng: "{appliedPromotion.name}" - Giảm {promotionDiscount.toLocaleString('vi-VN')} VNĐ
+                <div className="mt-2 p-2 bg-emerald-50 text-emerald-700 rounded-md text-sm border border-emerald-200">
+                    Đang áp dụng: "{appliedPromotion.name}" (Giảm {promotionDiscount.toLocaleString('vi-VN')} VNĐ)
                 </div>
             )}
-          </fieldset>
-          
-          <fieldset className="space-y-4 p-4 border border-border-base dark:border-slate-700 rounded-lg">
-              <legend className="text-lg font-semibold text-text-heading mb-3 px-2 flex items-center -ml-2">
-                  <Clock size={22} className="mr-2 text-brand-primary"/>Thời gian & Ghi chú
-              </legend>
-              <div>
-                  <Input 
-                      label="Thời gian hẹn trả (để trống để tự động tính)"
-                      type="datetime-local"
-                      name="manualEstimatedReturnTime"
-                      value={manualEstimatedReturnTime}
-                      onChange={(e) => setManualEstimatedReturnTime(e.target.value)}
-                      rightIcon={<CalendarIcon />}
-                  />
-                  {systemCalculatedReturnTime && (
-                      <p className="text-xs text-text-muted mt-1 pl-1">
-                          <InfoIcon size={12} className="inline mr-1" />
-                          Hệ thống đề xuất: {systemCalculatedReturnTime.toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}
-                      </p>
-                  )}
-              </div>
-              <Input 
-                  label="Ghi chú chung cho đơn hàng (nếu có)" 
-                  value={orderNotes} 
-                  onChange={e => setOrderNotes(e.target.value)} 
-                  placeholder="VD: Yêu cầu giao hàng sớm, không dùng hóa chất X..." 
-                  isTextArea 
-                  rows={2}
-                  leftIcon={<MessageSquareIcon />}
-              />
+            
+            <div className="mt-4 pt-4 border-t border-dashed border-border-base grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-1">
+                    <p className="flex justify-between"><span>Tạm tính:</span> <span>{subtotal.toLocaleString('vi-VN')} VNĐ</span></p>
+                    {promotionDiscount > 0 && 
+                        <p className="flex justify-between text-status-success-text"><span>Giảm giá:</span> <span>-{promotionDiscount.toLocaleString('vi-VN')} VNĐ</span></p>
+                    }
+                </div>
+                <div className="flex justify-between items-center sm:border-l sm:border-border-base sm:pl-4">
+                    <span className="font-semibold text-lg text-text-heading">Tổng cộng:</span>
+                    <span className="font-bold text-2xl text-brand-primary">{finalTotal.toLocaleString('vi-VN')} VNĐ</span>
+                </div>
+            </div>
           </fieldset>
 
+           <fieldset className="p-4 border border-border-base rounded-lg">
+            <legend className="text-lg font-semibold text-text-heading mb-3 px-2 flex items-center -ml-2">
+              <Clock size={22} className="mr-2 text-brand-primary"/>Thông tin Bổ sung
+            </legend>
+            <div className="space-y-3">
+              <Input 
+                isTextArea 
+                rows={2} 
+                label="Ghi chú chung cho đơn hàng" 
+                value={orderNotes} 
+                onChange={(e) => setOrderNotes(e.target.value)} 
+                placeholder="VD: Quần áo trắng giặt riêng, cẩn thận đồ mỏng..." 
+                leftIcon={<MessageSquareIcon size={16} />}
+              />
+              <div className="p-2 bg-sky-50 dark:bg-sky-900/30 rounded-md text-sm">
+                <div className="flex items-start">
+                    <InfoIcon size={16} className="mr-2 mt-0.5 text-sky-600 dark:text-sky-400 flex-shrink-0" />
+                    <div>
+                        <p className="text-sky-800 dark:text-sky-200">Thời gian trả dự kiến (hệ thống): <strong className="font-semibold">{systemCalculatedReturnTime ? systemCalculatedReturnTime.toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Chưa tính'}</strong></p>
+                        <p className="text-xs text-sky-700 dark:text-sky-300">Bạn có thể ghi đè bằng cách nhập thời gian hẹn trả thủ công bên dưới.</p>
+                    </div>
+                </div>
+              </div>
+              <Input
+                label="Hẹn trả thủ công (ghi đè)"
+                type="datetime-local"
+                value={manualEstimatedReturnTime}
+                onChange={e => setManualEstimatedReturnTime(e.target.value)}
+                leftIcon={<CalendarIcon size={16} />}
+              />
+            </div>
+          </fieldset>
 
           {isEditMode && (
-              <fieldset className="p-4 border border-border-base dark:border-slate-700 rounded-lg">
-                  <legend className="text-lg font-semibold text-text-heading dark:text-slate-100 mb-3 px-2 flex items-center -ml-2">
-                      <Edit3Icon size={20} className="mr-2 text-brand-primary"/>{isConfirmingOrderMode ? 'Lý do Xác nhận' : 'Lý do Chỉnh sửa'}
-                  </legend>
-                  <Input label={isConfirmingOrderMode ? "Lý do xác nhận (ghi lại thay đổi nếu có)*" : "Lý do chỉnh sửa đơn hàng*"} name="editReason" value={editReason} onChange={(e) => setEditReason(e.target.value)} required isTextArea />
-              </fieldset>
+              <Input isTextArea rows={2} label={isConfirmingOrderMode ? 'Ghi chú xác nhận*' : 'Lý do chỉnh sửa*'} value={editReason} onChange={(e) => setEditReason(e.target.value)} required leftIcon={<Edit3Icon size={16} />} />
           )}
-          
-          <div className="p-4 border border-border-base dark:border-slate-700 rounded-lg bg-sky-50 dark:bg-sky-800/20 space-y-2">
-                <div className="flex justify-between items-center text-md">
-                    <span className="text-text-muted">Tạm tính:</span>
-                    <span className="text-text-body">{subtotal.toLocaleString('vi-VN')} VNĐ</span>
-                </div>
-                 {promotionDiscount > 0 && (
-                    <div className="flex justify-between items-center text-md text-status-success-text">
-                        <span>Khuyến mãi:</span>
-                        <span>- {promotionDiscount.toLocaleString('vi-VN')} VNĐ</span>
-                    </div>
-                 )}
-              <div className="flex justify-between items-center pt-2 border-t border-sky-200">
-                  <span className="text-lg font-semibold text-text-heading dark:text-sky-100 flex items-center"><DollarSign size={22} className="mr-2 text-brand-primary"/>Tổng tiền:</span>
-                  <span className="text-2xl font-bold text-brand-primary dark:text-sky-300">{finalTotal.toLocaleString('vi-VN')} VNĐ</span>
-              </div>
-              <div className="flex justify-between items-center mt-1">
-                  <span className="text-sm text-text-muted dark:text-sky-300 flex items-center"><Clock size={16} className="mr-2"/>Dự kiến hoàn thành:</span>
-                  <span className="text-sm font-medium text-text-body dark:text-sky-200">
-                      {finalDisplayReturnTime 
-                          ? finalDisplayReturnTime.toLocaleString('vi-VN', {dateStyle: 'short', timeStyle: 'short'}) 
-                          : 'N/A'}
-                  </span>
-              </div>
-          </div>
 
-          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4 border-t border-border-base dark:border-slate-700">
-            <Button type="button" variant="secondary" onClick={() => navigate(isEditMode && editingOrder ? `/admin/orders/${editingOrder.id}` : '/admin/orders')} leftIcon={<XCircleIcon size={18}/>}>
-              Hủy bỏ
-            </Button>
-            <Button 
-              type="submit" 
-              variant="primary" 
-              leftIcon={<SaveButtonIcon size={18}/>} 
-              size="md" 
-              disabled={
-                  isSearchingCustomer || 
-                  (orderItems.length > 0 && orderItems.some(item => !appContextServices.find(s => s.name === item.serviceNameKey && s.washMethod === item.selectedWashMethod))) ||
-                  (!resolvedCustomer && !showNewCustomerFields && !isEditMode) ||
-                  (showNewCustomerFields && !customerNameInput.trim() && !isEditMode) ||
-                  orderItems.length === 0
-              }
-            >
+          <div className="flex justify-end pt-4 border-t border-border-base">
+            <Button type="submit" size="lg" leftIcon={<SaveButtonIcon size={20}/>}>
               {saveButtonText}
             </Button>
           </div>
         </form>
       </Card>
-      
-      <Modal
-        isOpen={isReturnTimeWarningModalOpen}
-        onClose={() => setIsReturnTimeWarningModalOpen(false)}
-        title="Cảnh báo Thời gian hẹn trả"
-        titleIcon={<AlertTriangleIcon className="text-status-warning" />}
-        footerContent={
-            <Button onClick={() => setIsReturnTimeWarningModalOpen(false)} variant="primary">
-                Đã hiểu
-            </Button>
-        }
-      >
-        <p className="text-text-body">{returnTimeWarningMessage}</p>
-      </Modal>
+
+       <Modal
+          isOpen={isReturnTimeWarningModalOpen}
+          onClose={() => setIsReturnTimeWarningModalOpen(false)}
+          title="Cảnh báo Thời gian Hẹn trả"
+          titleIcon={<AlertTriangleIcon className="text-status-warning" />}
+        >
+          <p>{returnTimeWarningMessage}</p>
+          <div className="mt-4 flex justify-end">
+            <Button onClick={() => setIsReturnTimeWarningModalOpen(false)}>Đã hiểu</Button>
+          </div>
+        </Modal>
     </>
   );
 };
 
-export default OrderCreatePage;
+// FIX: Changed export to a named export to match the import in App.tsx.
+// export default OrderCreatePage;

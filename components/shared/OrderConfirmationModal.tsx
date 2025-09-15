@@ -3,7 +3,8 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { QRCodeDisplay } from './QRCodeDisplay';
 // FIX: Replaced deprecated Customer type with User.
-import { Order, User, ServiceItem as AppServiceItem, OrderItem, OrderStatus, UserRole, ScanHistoryEntry, WashMethod, OrderDetailsFromAI as AppOrderDetailsFromAI, StoreProfile, PaymentStatus, Promotion } from '../../types';
+// FIX: Removed deprecated WashMethod type and added WashMethodDefinition for lookups.
+import { Order, User, ServiceItem as AppServiceItem, OrderItem, OrderStatus, UserRole, ScanHistoryEntry, WashMethodDefinition, OrderDetailsFromAI as AppOrderDetailsFromAI, StoreProfile, PaymentStatus, Promotion } from '../../types';
 import { XIcon, CheckCircleIcon, ShoppingCartIcon, UserIcon, CalendarDaysIcon, TruckIcon, DollarSignIcon, AlertTriangleIcon, InfoIcon, PlusIcon, MinusCircleIcon, TagIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useData } from '../../contexts/DataContext'; 
@@ -14,7 +15,8 @@ import { Modal } from '../ui/Modal';
 interface EditableOrderItem {
   id: string;
   serviceNameKey: string;
-  selectedWashMethod: WashMethod;
+  // FIX: Replaced selectedWashMethod with selectedWashMethodId to align with data model.
+  selectedWashMethodId: string;
   quantity: number;
   notes?: string;
 }
@@ -29,6 +31,8 @@ interface OrderConfirmationModalProps {
   availableServices: AppServiceItem[];
   addUser: (customer: Omit<User, 'id'>) => Promise<User | null>; 
   targetStoreOwnerId?: string; 
+  // FIX: Added washMethods prop to allow for name lookups.
+  washMethods: WashMethodDefinition[];
 }
 
 export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
@@ -41,6 +45,8 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
   // FIX: Renamed for clarity.
   addUser: addUserToContext, 
   targetStoreOwnerId, 
+  // FIX: Destructure new washMethods prop.
+  washMethods,
 }) => {
   const { users: globalUsers, storeProfiles, findPromotionByCode, addNotification } = useData(); 
 
@@ -74,7 +80,8 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
           return {
             id: uuidv4(),
             serviceNameKey: matchingService?.name || aiItem.serviceName,
-            selectedWashMethod: matchingService?.washMethod || WashMethod.WET_WASH,
+            // FIX: Replaced deprecated washMethod with washMethodId.
+            selectedWashMethodId: matchingService?.washMethodId || '',
             quantity: aiItem.quantity,
             notes: aiItem.notes,
           };
@@ -102,7 +109,8 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
     let currentTotal = 0;
     const errors: string[] = [];
     editableItems.forEach(item => {
-      const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethod === item.selectedWashMethod);
+      // FIX: Changed check from washMethod to washMethodId.
+      const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
       if (service) {
         currentTotal += Math.max(service.price * item.quantity, service.minPrice || 0);
       } else {
@@ -133,13 +141,14 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
   const finalTotal = subtotal - promotionDiscount;
 
 
-  const handleItemChange = (itemId: string, field: keyof EditableOrderItem, value: string | number | WashMethod) => {
+  const handleItemChange = (itemId: string, field: keyof EditableOrderItem, value: string | number) => {
     setEditableItems(prev => prev.map(item => {
       if (item.id === itemId) {
         const updated = { ...item, [field]: value };
         if (field === 'serviceNameKey') {
           const servicesWithThisName = availableServices.filter(s => s.name === value);
-          updated.selectedWashMethod = servicesWithThisName[0]?.washMethod || WashMethod.WET_WASH;
+          // FIX: Updated to use washMethodId.
+          updated.selectedWashMethodId = servicesWithThisName[0]?.washMethodId || '';
         }
         if (field === 'quantity') {
           updated.quantity = Math.max(1, Number(value) || 1);
@@ -156,7 +165,8 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
     setEditableItems(prev => [...prev, {
       id: uuidv4(),
       serviceNameKey: defaultService?.name || '',
-      selectedWashMethod: defaultService?.washMethod || WashMethod.WET_WASH,
+      // FIX: Updated to use washMethodId.
+      selectedWashMethodId: defaultService?.washMethodId || '',
       quantity: 1,
       notes: ''
     }]);
@@ -185,7 +195,8 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
     }
     if (promotion.applicableServiceIds && promotion.applicableServiceIds.length > 0) {
         const hasApplicableService = editableItems.some(item => {
-            const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethod === item.selectedWashMethod);
+            // FIX: Updated to use washMethodId for finding the service.
+            const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
             return service && promotion.applicableServiceIds!.includes(service.id);
         });
         if (!hasApplicableService) {
@@ -193,11 +204,14 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
             return;
         }
     }
-    if (promotion.applicableWashMethods && promotion.applicableWashMethods.length > 0) {
+    // FIX: Changed applicableWashMethods to applicableWashMethodIds.
+    if (promotion.applicableWashMethodIds && promotion.applicableWashMethodIds.length > 0) {
         const hasApplicableWashMethod = editableItems.some(item => 
-            promotion.applicableWashMethods!.includes(item.selectedWashMethod)
+            // FIX: Changed applicableWashMethods to applicableWashMethodIds.
+            promotion.applicableWashMethodIds!.includes(item.selectedWashMethodId)
         );
         if (!hasApplicableWashMethod) {
+            // FIX: Changed applicableWashMethods to applicableWashMethodIds.
             setPromotionError("Mã khuyến mãi này không áp dụng cho phương pháp giặt nào trong đơn hàng của bạn.");
             return;
         }
@@ -262,11 +276,13 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
       return;
     }
 
+    // FIX: Construct OrderItem with selectedWashMethodId instead of selectedWashMethod.
     const itemsForNewOrder: OrderItem[] = editableItems.map(item => {
-      const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethod === item.selectedWashMethod)!; // Already validated
+      // FIX: Find service using washMethodId.
+      const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId)!; // Already validated
       return {
           serviceItem: service,
-          selectedWashMethod: item.selectedWashMethod,
+          selectedWashMethodId: item.selectedWashMethodId,
           quantity: item.quantity,
           notes: item.notes?.trim() || undefined,
       };
@@ -296,10 +312,14 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
   if (!isOpen) return null;
 
   const renderItemRow = (item: EditableOrderItem) => {
+    // FIX: Updated to use washMethodId and get wash method name from the new prop.
     const washMethodsForService = availableServices
       .filter(s => s.name === item.serviceNameKey)
-      .map(s => ({ value: s.washMethod, label: `${s.washMethod} (${s.price.toLocaleString('vi-VN')}đ)` }));
-    const lineTotal = availableServices.find(s => s.name === item.serviceNameKey && s.washMethod === item.selectedWashMethod)?.price * item.quantity || 0;
+      .map(s => {
+          const washMethod = washMethods.find(wm => wm.id === s.washMethodId);
+          return { value: s.washMethodId, label: `${washMethod?.name || s.washMethodId} (${s.price.toLocaleString('vi-VN')}đ)`};
+      });
+    const lineTotal = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId)?.price * item.quantity || 0;
 
     return (
       <div key={item.id} className="grid grid-cols-12 gap-2 items-end border-b border-border-base pb-2 mb-2">
@@ -307,7 +327,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
           <Select label="Dịch vụ" options={uniqueServiceNames} value={item.serviceNameKey} onChange={e => handleItemChange(item.id, 'serviceNameKey', e.target.value)} />
         </div>
         <div className="col-span-6 md:col-span-3">
-          <Select label="PP Giặt" options={washMethodsForService} value={item.selectedWashMethod} onChange={e => handleItemChange(item.id, 'selectedWashMethod', e.target.value as WashMethod)} />
+          <Select label="PP Giặt" options={washMethodsForService} value={item.selectedWashMethodId} onChange={e => handleItemChange(item.id, 'selectedWashMethodId', e.target.value)} />
         </div>
         <div className="col-span-6 md:col-span-2">
           <Input label="SL" type="number" min="1" value={item.quantity} onChange={e => handleItemChange(item.id, 'quantity', e.target.value)} />

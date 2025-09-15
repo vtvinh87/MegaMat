@@ -1,5 +1,5 @@
 // FIX: Removed deprecated Customer type. User is now used for all individuals.
-import { UserRole, User, StoreProfile, FixedCostItem, MaterialItemDefinition, VariableCost, VariableCostCategory, Order, ServiceItem, OrderItem, ScanHistoryEntry, InventoryItem, MaterialOrder, Notification, OrderStatus, Promotion, PaymentStatus, PaymentMethod, Supplier, FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreUpdateHistoryEntry } from '../../types';
+import { UserRole, User, StoreProfile, FixedCostItem, MaterialItemDefinition, VariableCost, VariableCostCategory, Order, ServiceItem, OrderItem, ScanHistoryEntry, InventoryItem, MaterialOrder, Notification, OrderStatus, Promotion, PaymentStatus, PaymentMethod, Supplier, FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreUpdateHistoryEntry, WashMethodDefinition } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { MOCK_SERVICES } from '../../constants';
 import * as LsKeys from './utils';
@@ -161,7 +161,7 @@ const createDemoOrders = (customers: User[], services: ServiceItem[], users: Use
       const quantity = getRandomInt(1, 3);
       const lineTotal = Math.max(serviceItem.price * quantity, serviceItem.minPrice || 0);
       orderTotalAmount += lineTotal;
-      items.push({ serviceItem, selectedWashMethod: serviceItem.washMethod, quantity: quantity, notes: Math.random() > 0.7 ? `Ghi chú demo ${j + 1}` : undefined });
+      items.push({ serviceItem, selectedWashMethodId: serviceItem.washMethodId, quantity: quantity, notes: Math.random() > 0.7 ? `Ghi chú demo ${j + 1}` : undefined });
       if (serviceItem.customerReturnTimeHours > maxProcessingTimeHoursForOrder) maxProcessingTimeHoursForOrder = serviceItem.customerReturnTimeHours;
     }
     if(items.length === 0 && services.length > 0) { 
@@ -169,7 +169,7 @@ const createDemoOrders = (customers: User[], services: ServiceItem[], users: Use
         const quantity = getRandomInt(1, 2);
         const lineTotal = Math.max(serviceItem.price * quantity, serviceItem.minPrice || 0);
         orderTotalAmount += lineTotal;
-        items.push({ serviceItem, selectedWashMethod: serviceItem.washMethod, quantity: quantity });
+        items.push({ serviceItem, selectedWashMethodId: serviceItem.washMethodId, quantity: quantity });
         if (serviceItem.customerReturnTimeHours > maxProcessingTimeHoursForOrder) maxProcessingTimeHoursForOrder = serviceItem.customerReturnTimeHours;
     }
     
@@ -266,6 +266,15 @@ const createDemoMaterialOrders = (ownerId: string, materialDefs: MaterialItemDef
     return orders;
 };
 
+const createInitialWashMethods = (ownerId: string): WashMethodDefinition[] => [
+  { id: `wm_wet_wash_default_${ownerId}`, name: "Giặt ướt", description: "Giặt bằng nước và hóa chất giặt thông thường.", ownerId },
+  { id: `wm_dry_clean_default_${ownerId}`, name: "Giặt khô", description: "Làm sạch bằng dung môi hóa học thay vì nước.", ownerId },
+  { id: `wm_steam_iron_default_${ownerId}`, name: "Là hơi", description: "Làm phẳng quần áo bằng bàn là hơi nước công nghiệp.", ownerId },
+  { id: `wm_dry_only_default_${ownerId}`, name: "Chỉ sấy", description: "Sấy khô quần áo đã được giặt sạch.", ownerId },
+  { id: `wm_iron_only_default_${ownerId}`, name: "Chỉ ủi", description: "Làm phẳng quần áo bằng bàn là nhiệt thông thường.", ownerId },
+];
+
+
 type AppStateSetters = {
     setUsersData: (data: User[]) => void;
     setCustomersData: (data: User[]) => void;
@@ -286,6 +295,7 @@ type AppStateSetters = {
     setAllKpisData: (data: KPI[]) => void;
     setStoreUpdateHistoryData: (data: StoreUpdateHistoryEntry[]) => void;
     setSuppliersData: (data: Supplier[]) => void;
+    setWashMethodsData: (data: WashMethodDefinition[]) => void;
 };
 
 export const seedInitialData = async (setters: AppStateSetters) => {
@@ -324,11 +334,13 @@ export const seedInitialData = async (setters: AppStateSetters) => {
     let allVariableCosts: VariableCost[] = [];
     let allInventory: InventoryItem[] = [];
     let allMaterialOrders: MaterialOrder[] = [];
+    let allWashMethods: WashMethodDefinition[] = [];
 
     storeOwners.forEach(owner => {
         const storeProfile = MOCK_STORE_PROFILES.find(p => p.ownerId === owner.id);
         const storeNameForCosts = storeProfile ? storeProfile.storeName : owner.name;
-
+        
+        allWashMethods.push(...createInitialWashMethods(owner.id));
         allOrders.push(...createDemoOrders(customersForOrders, MOCK_SERVICES, hashedUsers, owner.id));
         allFixedCosts.push(...createInitialFixedCosts(owner.id, storeNameForCosts));
         allVariableCosts.push(...createDemoVariableCosts(owner.id));
@@ -341,6 +353,7 @@ export const seedInitialData = async (setters: AppStateSetters) => {
     setters.setAllVariableCostsData(allVariableCosts);
     setters.setAllInventoryData(allInventory);
     setters.setAllMaterialOrdersData(allMaterialOrders);
+    setters.setWashMethodsData(allWashMethods);
 
     // 4. Initialize remaining data slices to empty arrays
     setters.setAllNotificationsData([]);

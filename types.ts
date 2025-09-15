@@ -1,5 +1,12 @@
 
 
+export interface WashMethodDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId: string;
+}
+
 export enum UserRole {
   CUSTOMER = 'Khách hàng',
   STAFF = 'Nhân viên',
@@ -57,19 +64,11 @@ export interface User {
 }
 
 
-export enum WashMethod {
-  WET_WASH = "Giặt ướt",
-  DRY_CLEAN = "Giặt khô",
-  STEAM_IRON = "Là hơi",
-  DRY_ONLY = "Chỉ sấy",
-  IRON_ONLY = "Chỉ ủi",
-}
-
 export interface ServiceItem {
   id: string;
   name: string; 
   unit: string; 
-  washMethod: WashMethod; 
+  washMethodId: string; 
   price: number;
   minPrice?: number; // Giá tối thiểu, có thể không áp dụng cho tất cả
   estimatedTimeHours: number; // Đây là "TG Xử lý (giờ)"
@@ -82,7 +81,7 @@ export interface ServiceItem {
 
 export interface OrderItem {
   serviceItem: ServiceItem;
-  selectedWashMethod: WashMethod; 
+  selectedWashMethodId: string; 
   quantity: number;
   notes?: string;
 }
@@ -383,7 +382,7 @@ export interface Promotion {
   timesUsed: number;
   minOrderAmount?: number; // Minimum order total to apply
   applicableServiceIds?: string[]; // Limit to specific services
-  applicableWashMethods?: WashMethod[]; // Limit to specific wash methods
+  applicableWashMethodIds?: string[]; // Limit to specific wash methods
   applicableChannels?: ('online' | 'instore')[]; // Limit to online or in-store orders
   ownerId: string; // The user ID of the creator (Owner or Chairman)
   usageLimitPerCustomer?: number; // Max uses per customer
@@ -435,6 +434,7 @@ export interface AppData {
   acknowledgedSystemPromos: { [ownerId: string]: string[] };
   acknowledgedCancelRequests: { [ownerId: string]: string[] };
   acknowledgedOptOutRequests: { [chairmanId: string]: string[] };
+  washMethods: WashMethodDefinition[];
 }
 
 export interface AppContextType extends AppData {
@@ -512,6 +512,11 @@ export interface AppContextType extends AppData {
   acknowledgeSystemPromo: (promotionId: string) => void;
   acknowledgeCancelRequest: (promotionId: string) => void;
   acknowledgeOptOutRequest: (promotionId: string, storeOwnerId: string) => void;
+
+  // Wash Method Management
+  addWashMethod: (methodData: Omit<WashMethodDefinition, 'id' | 'ownerId'>) => void;
+  updateWashMethod: (method: WashMethodDefinition) => void;
+  deleteWashMethod: (methodId: string) => void;
 
   // Helper to get ownerId for the current user's store context
   getCurrentUserOwnerId: () => string | null; 

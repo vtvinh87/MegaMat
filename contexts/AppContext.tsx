@@ -24,6 +24,7 @@ import { useFinancialManagement } from './app/hooks/useFinancialManagement';
 import { useFeedbackManagement } from './app/hooks/useFeedbackManagement';
 import { useKpiManagement } from './app/hooks/useKpiManagement';
 import { usePromotionManagement } from './app/hooks/usePromotionManagement';
+import { useWashMethodManagement } from './app/hooks/useWashMethodManagement';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // --- Toast Integration ---
@@ -180,6 +181,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAcknowledgedOptOutRequests: appState.setAcknowledgedOptOutRequests,
   });
 
+  const washMethodManagement = useWashMethodManagement({
+    currentUserOwnerId: userManagement.getCurrentUserOwnerId(),
+    washMethodsData: appState.washMethodsData,
+    setWashMethodsData: appState.setWashMethodsData,
+    addNotification: notificationLogic.addNotification,
+  });
+
   const userMgmtWithNotifications = useUserManagement({
       currentUser: currentUserInternal,
       addNotification: notificationLogic.addNotification,
@@ -245,6 +253,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     acknowledgedSystemPromos: appState.acknowledgedSystemPromos,
     acknowledgedCancelRequests: appState.acknowledgedCancelRequests,
     acknowledgedOptOutRequests: appState.acknowledgedOptOutRequests,
+    washMethods: appState.washMethodsData,
     
     activePublicCustomerId,
     setActivePublicCustomerId,
@@ -262,6 +271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ...feedbackManagement,
     ...kpiManagement,
     ...promotionManagement,
+    ...washMethodManagement,
     ...filteredData, // Spread filtered data slices last to override raw ones
   };
 
