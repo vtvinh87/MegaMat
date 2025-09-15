@@ -1,0 +1,16 @@
+{
+  "name": "mega-laundromat",
+  "version": "1.0.0",
+  "description": "Mega Laundromat Application",
+  "main": "index.js",
+  "scripts": {
+    "build": "mkdir -p dist && esbuild index.tsx --bundle --outfile=dist/index.js --format=esm --platform=browser --external:react --external:react-dom --external:react-router-dom --external:recharts --external:uuid --external:lucide-react --external:react-qr-code --external:@google/genai --define:process.env.API_KEY=\"'$API_KEY'\" && cp index.html dist/index.html && cp metadata.json dist/metadata.json && sed -i.bak 's|<script type=\"module\" src=\"/index.tsx\"></script>|<script type=\"module\" src=\"index.js\"></script>|' dist/index.html && rm -f dist/index.html.bak",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  }
+}

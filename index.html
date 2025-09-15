@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mega Laundromat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class', // Enable dark mode based on class
+      theme: {
+        extend: {
+          colors: {
+            // Primary Brand Colors
+            'brand-primary': 'var(--color-brand-primary)',
+            'brand-primary-hover': 'var(--color-brand-primary-hover)',
+            'brand-primary-focus': 'var(--color-brand-primary-focus)',
+
+            // Accent Color
+            'brand-accent': 'var(--color-brand-accent)',
+
+            // Background Colors
+            'bg-base': 'var(--color-bg-base)',
+            'bg-surface': 'var(--color-bg-surface)',
+            'bg-input': 'var(--color-bg-input)', 
+            'bg-surface-hover': 'var(--color-bg-surface-hover)',
+            'bg-subtle': 'var(--color-bg-subtle)',
+
+            // Text Colors
+            'text-heading': 'var(--color-text-heading)',
+            'text-body': 'var(--color-text-body)',
+            'text-muted': 'var(--color-text-muted)',
+            'text-on-primary': 'var(--color-text-on-primary)',
+            'text-link': 'var(--color-text-link)',
+
+            // Border Colors
+            'border-base': 'var(--color-border-base)',
+            'border-input': 'var(--color-border-input)',
+            'border-focus': 'var(--color-border-focus)',
+
+            // Semantic Colors
+            'status-danger': 'var(--color-status-danger)',
+            'status-danger-text': 'var(--color-status-danger-text)',
+            'status-danger-bg': 'var(--color-status-danger-bg)',
+            'status-warning': 'var(--color-status-warning)',
+            'status-warning-text': 'var(--color-status-warning-text)',
+            'status-warning-bg': 'var(--color-status-warning-bg)',
+            'status-success': 'var(--color-status-success)',
+            'status-success-text': 'var(--color-status-success-text)',
+            'status-success-bg': 'var(--color-status-success-bg)',
+            'status-info': 'var(--color-status-info)',
+            'status-info-text': 'var(--color-status-info-text)',
+            'status-info-bg': 'var(--color-status-info-bg)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root {
+      /* --- Apple-inspired Professional UI Theme --- */
+
+      /* Primary Brand Colors (Apple Blue) */
+      --color-brand-primary: #007aff;
+      --color-brand-primary-hover: #006ee6;
+      --color-brand-primary-focus: #007aff;
+      --color-brand-accent: #5856d6; /* A purple for accents */
+
+      /* Background Colors (Clean & High Contrast) */
+      --color-bg-base: #f8f9fa;       /* Very light gray, almost white */
+      --color-bg-surface: #ffffff;     /* Pure white for cards, modals */
+      --color-bg-input: #ffffff;       /* White for inputs */
+      --color-bg-surface-hover: #f1f3f5; /* Subtle gray for hover states */
+      --color-bg-subtle: #f1f3f5;      /* Subtle gray for table headers, etc. */
+
+      /* Text Colors (High Readability) */
+      --color-text-heading: #212529;   /* Near-black for titles */
+      --color-text-body: #495057;      /* Dark gray for main content */
+      --color-text-muted: #6c757d;     /* Medium gray for secondary info */
+      --color-text-on-primary: #ffffff;/* White text on primary buttons */
+      --color-text-link: #007aff;      /* Apple Blue for links */
+
+      /* Border Colors (Subtle) */
+      --color-border-base: #dee2e6;    /* Light gray for card/container borders */
+      --color-border-input: #ced4da;   /* Slightly darker for input fields */
+      --color-border-focus: #007aff;   /* Apple Blue for focus rings */
+
+      /* Semantic Colors (Clear & Accessible) */
+      --color-status-danger: #dc3545;
+      --color-status-danger-text: #721c24;
+      --color-status-danger-bg: #f8d7da;
+      
+      --color-status-warning: #ffc107;
+      --color-status-warning-text: #856404;
+      --color-status-warning-bg: #fff3cd;
+      
+      --color-status-success: #198754;
+      --color-status-success-text: #0f5132;
+      --color-status-success-bg: #d1e7dd;
+      
+      --color-status-info: #0d6efd;
+      --color-status-info-text: #052c65;
+      --color-status-info-bg: #cce5ff;
+    }
+    
+    body.dark {
+      /* --- Dark Mode Theme --- */
+
+      /* Primary Brand Colors (Brighter for dark bg) */
+      --color-brand-primary: #0a84ff;
+      --color-brand-primary-hover: #007ae1;
+      --color-brand-primary-focus: #0a84ff;
+      --color-brand-accent: #5e5ce6;
+
+      /* Background Colors (Dark & High Contrast) */
+      --color-bg-base: #121212;
+      --color-bg-surface: #1e1e1e;
+      --color-bg-input: #2a2a2a;
+      --color-bg-surface-hover: #2a2a2a;
+      --color-bg-subtle: #2a2a2a;
+
+      /* Text Colors (High Readability on Dark) */
+      --color-text-heading: #e5e7eb;
+      --color-text-body: #d1d5db;
+      --color-text-muted: #9ca3af;
+      --color-text-on-primary: #ffffff;
+      --color-text-link: #3b82f6;
+
+      /* Border Colors (Subtle) */
+      --color-border-base: #374151;
+      --color-border-input: #4b5563;
+      --color-border-focus: #0a84ff;
+
+      /* Semantic Colors (Clear & Accessible for Dark Mode) */
+      --color-status-danger: #ff453a;
+      --color-status-danger-text: #ffb8b5;
+      --color-status-danger-bg: rgba(255, 69, 58, 0.2);
+      
+      --color-status-warning: #ffcc00;
+      --color-status-warning-text: #ffe78a;
+      --color-status-warning-bg: rgba(255, 204, 0, 0.2);
+      
+      --color-status-success: #30d158;
+      --color-status-success-text: #a8f5bb;
+      --color-status-success-bg: rgba(48, 209, 88, 0.2);
+      
+      --color-status-info: #0a84ff;
+      --color-status-info-text: #b5daff;
+      --color-status-info-bg: rgba(10, 132, 255, 0.2);
+    }
+
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+      background-color: var(--color-bg-base);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.5s ease-out forwards;
+    }
+
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "@/": "/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.1",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "recharts": "https://esm.sh/recharts@^2.15.3",
+    "uuid": "https://esm.sh/uuid@^11.1.0",
+    "lucide-react": "https://esm.sh/lucide-react@0.511.0",
+    "react-qr-code": "https://esm.sh/react-qr-code@^2.0.15",
+    "@google/genai": "https://esm.sh/@google/genai@0.15.0",
+    "jspdf": "https://esm.sh/jspdf@^2.5.1",
+    "jspdf-autotable": "https://esm.sh/jspdf-autotable@^3.8.2"
+  }
+}
+</script>
+</head>
+<body class="text-text-body transition-colors duration-200">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
