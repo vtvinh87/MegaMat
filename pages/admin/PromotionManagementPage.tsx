@@ -10,7 +10,7 @@ import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Spinner } from '../../components/ui/Spinner';
-import { PlusCircleIcon, EditIcon, Trash2Icon, SearchIcon, TagIcon, Percent, DollarSign, Calendar, AlertTriangle, CheckCircle, XCircle, BarChart2, TrendingUp, Users, SparklesIcon, Building, ShieldCheck, ShieldAlert, ShieldOff, BanIcon, HelpCircleIcon, Settings2Icon, DropletsIcon } from 'lucide-react';
+import { PlusCircleIcon, EditIcon, Trash2Icon, SearchIcon, TagIcon, Percent, DollarSign, Calendar, AlertTriangle, CheckCircle, XCircle, BarChart2, TrendingUp, Users, SparklesIcon, Building, ShieldCheck, ShieldAlert, ShieldOff, BanIcon, HelpCircleIcon, Settings2Icon, DropletsIcon, MegaphoneIcon } from 'lucide-react';
 import { WASH_METHOD_OPTIONS } from '../../constants';
 
 
@@ -282,6 +282,16 @@ const PromotionManagementPage: React.FC = () => {
   const [revenueInsight, setRevenueInsight] = useState<string>('');
   // --- END: AI Suggestion State ---
 
+  // --- START: AI Campaign State ---
+  const [isAiCampaignModalOpen, setIsAiCampaignModalOpen] = useState(false);
+  const [aiCampaignGoal, setAiCampaignGoal] = useState('');
+  const [aiCampaignProposal, setAiCampaignProposal] = useState<string | null>(null);
+  const [isGeneratingCampaign, setIsGeneratingCampaign] = useState(false);
+  const [aiCampaignError, setAiCampaignError] = useState<string | null>(null);
+  const [customerInsights, setCustomerInsights] = useState<string>('');
+  const [serviceInsights, setServiceInsights] = useState<string>('');
+  // --- END: AI Campaign State ---
+
   const isChairman = currentUser?.role === UserRole.CHAIRMAN;
   const isOwner = currentUser?.role === UserRole.OWNER;
   const canManage = currentUser && (currentUser.role === UserRole.OWNER || currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.CHAIRMAN);
@@ -319,35 +329,53 @@ const PromotionManagementPage: React.FC = () => {
     ).sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0) || new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime());
   }, [promotions, searchTerm, isChairman, isOwner, storeFilter, currentUser]);
   
-  // Revenue analysis for AI suggestion
+  // Data analysis for AI suggestions (both promo and campaign)
   useMemo(() => {
-    if (!isAiSuggestModalOpen) return;
+    if (!isAiSuggestModalOpen && !isAiCampaignModalOpen) return;
 
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonthToDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
-    const revenueThisMonth = orders
-        .filter(o => new Date(o.createdAt) >= startOfMonth)
-        .reduce((sum, o) => sum + o.totalAmount, 0);
+    const ordersThisMonth = orders.filter(o => new Date(o.createdAt) >= startOfThisMonth);
+    const ordersLastMonth = orders.filter(o => new Date(o.createdAt) >= startOfLastMonth && new Date(o.createdAt) <= endOfLastMonth);
+
+    // Revenue Insight
+    const revenueThisMonth = ordersThisMonth.reduce((sum, o) => sum + o.totalAmount, 0);
+    const revenueLastMonth = ordersLastMonth.reduce((sum, o) => sum + o.totalAmount, 0);
     
-    const revenueLastMonthToDate = orders
-        .filter(o => {
-            const orderDate = new Date(o.createdAt);
-            return orderDate >= startOfLastMonth && orderDate <= endOfLastMonthToDate;
-        })
-        .reduce((sum, o) => sum + o.totalAmount, 0);
-
-    let insight = "Doanh thu tháng này ổn định.";
-    if (revenueLastMonthToDate > 0 && revenueThisMonth < revenueLastMonthToDate) {
-        const percentageDrop = ((revenueLastMonthToDate - revenueThisMonth) / revenueLastMonthToDate) * 100;
-        insight = `Phân tích dữ liệu: Doanh thu tháng này (${revenueThisMonth.toLocaleString('vi-VN')} VNĐ) đang thấp hơn khoảng ${percentageDrop.toFixed(0)}% so với cùng kỳ tháng trước (${revenueLastMonthToDate.toLocaleString('vi-VN')} VNĐ). Cần một chương trình khuyến mãi mạnh để kích cầu.`;
-    } else if (revenueThisMonth > revenueLastMonthToDate) {
-        insight = `Phân tích dữ liệu: Doanh thu tháng này đang tăng trưởng tốt so với tháng trước. Nên tập trung vào việc tri ân khách hàng cũ hoặc thu hút khách hàng mới để giữ đà tăng trưởng.`;
+    let revenueText = "Doanh thu tháng này ổn định.";
+    if (revenueLastMonth > 0 && revenueThisMonth < revenueLastMonth) {
+        const percentageDrop = ((revenueLastMonth - revenueThisMonth) / revenueLastMonth) * 100;
+        revenueText = `Doanh thu tháng này (${revenueThisMonth.toLocaleString('vi-VN')} VNĐ) đang thấp hơn khoảng ${percentageDrop.toFixed(0)}% so với tháng trước (${revenueLastMonth.toLocaleString('vi-VN')} VNĐ).`;
+    } else if (revenueThisMonth > revenueLastMonth) {
+        revenueText = `Doanh thu tháng này đang tăng trưởng tốt so với tháng trước.`;
     }
-    setRevenueInsight(insight);
-  }, [isAiSuggestModalOpen, orders]);
+    setRevenueInsight(revenueText);
+    
+    // Customer Insight
+    const customersThisMonth = new Set(ordersThisMonth.map(o => o.customer.id));
+    const allCustomersBeforeThisMonth = new Set(orders.filter(o => new Date(o.createdAt) < startOfThisMonth).map(o => o.customer.id));
+    const newCustomersThisMonth = Array.from(customersThisMonth).filter(id => !allCustomersBeforeThisMonth.has(id)).length;
+    setCustomerInsights(`Tháng này có ${customersThisMonth.size} khách hàng, trong đó có ${newCustomersThisMonth} khách hàng mới.`);
+
+    // Service Insight
+    const serviceRevenue = ordersThisMonth.reduce((acc, order) => {
+        order.items.forEach(item => {
+            const name = item.serviceItem.name;
+            const price = item.serviceItem.price * item.quantity;
+            acc[name] = (acc[name] || 0) + price;
+        });
+        return acc;
+    }, {} as Record<string, number>);
+    
+    const sortedServices = Object.entries(serviceRevenue).sort((a, b) => b[1] - a[1]);
+    const top3 = sortedServices.slice(0, 3).map(s => s[0]).join(', ');
+    const bottom3 = sortedServices.slice(-3).reverse().map(s => s[0]).join(', ');
+    setServiceInsights(`Dịch vụ hiệu quả nhất: ${top3 || 'N/A'}. Dịch vụ ít hiệu quả nhất: ${bottom3 || 'N/A'}.`);
+
+  }, [isAiSuggestModalOpen, isAiCampaignModalOpen, orders]);
 
 
   const handleGenerateSuggestion = async (goal: string) => {
@@ -444,6 +472,66 @@ const PromotionManagementPage: React.FC = () => {
         setIsGeneratingSuggestion(false);
     }
   };
+  
+  const handleGenerateCampaign = async (goal: string) => {
+    if (!goal.trim() || !process.env.API_KEY) {
+        setAiCampaignError("Vui lòng nhập mục tiêu cho chiến dịch.");
+        return;
+    }
+    setIsGeneratingCampaign(true);
+    setAiCampaignError(null);
+    setAiCampaignProposal(null);
+
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const now = new Date();
+        const eventContext = getVietnameseEvents(now.getMonth());
+
+        const prompt = `Bạn là một nhà chiến lược marketing tài ba cho một cửa hàng giặt là. Dựa trên mục tiêu và dữ liệu kinh doanh được cung cấp, hãy soạn thảo một BẢN ĐỀ XUẤT CHIẾN DỊCH MARKETING chi tiết, chuyên nghiệp bằng tiếng Việt.
+        
+        BỐI CẢNH KINH DOANH:
+        - Tên cửa hàng: ${currentUser?.name}'s Laundromat
+        - Mục tiêu chính của chiến dịch: "${goal}"
+        - Tình hình doanh thu: ${revenueInsight}
+        - Phân tích khách hàng: ${customerInsights}
+        - Phân tích dịch vụ: ${serviceInsights}
+        - Sự kiện trong tháng: ${eventContext}
+
+        YÊU CẦU ĐỀ XUẤT:
+        Hãy trình bày bản đề xuất theo cấu trúc markdown rõ ràng sau:
+
+        **1. Tên chiến dịch:** (Một cái tên hấp dẫn, dễ nhớ)
+        
+        **2. Đối tượng mục tiêu:** (Mô tả chi tiết nhóm khách hàng nên nhắm tới, dựa trên phân tích)
+
+        **3. Thông điệp chính:** (Câu slogan hoặc thông điệp cốt lõi của chiến dịch)
+
+        **4. Kênh triển khai:** 
+        *   **Online:** (Gợi ý các kênh như Facebook, Zalo, Google Maps...)
+        *   **Offline:** (Gợi ý các hoạt động tại cửa hàng, phát tờ rơi, hợp tác địa phương...)
+
+        **5. Các bước thực hiện:** (Liệt kê 3-5 hành động cụ thể, theo thứ tự. Ví dụ: Thiết kế banner, chạy quảng cáo Facebook, tạo mã giảm giá...)
+
+        **6. Cách đo lường hiệu quả (KPIs):** (Đề xuất các chỉ số để theo dõi thành công, ví dụ: Số lượng khách hàng mới, Doanh thu từ chiến dịch, Lượt sử dụng mã KM...)
+        
+        Hãy viết một cách chuyên nghiệp, thuyết phục và khả thi cho một cửa hàng giặt là.`;
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+
+        setAiCampaignProposal(response.text);
+
+    } catch (err) {
+        console.error("AI campaign generation error:", err);
+        const errorMessage = err instanceof Error ? err.message : "Lỗi không xác định";
+        setAiCampaignError(`Không thể tạo đề xuất: ${errorMessage}`);
+    } finally {
+        setIsGeneratingCampaign(false);
+    }
+};
+
 
   const handleUseSuggestion = (suggestion: Partial<Promotion>) => {
     openModal('add', {
@@ -570,13 +658,22 @@ const PromotionManagementPage: React.FC = () => {
     "Tăng giá trị đơn hàng trung bình",
   ];
 
+  const markdownToHtml = (text: string) => {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
+      .replace(/\* (.*?)(?=\n\*|\n\n|$)/g, '<li>$1</li>') // List items
+      .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>') // Wrap in ul
+      .replace(/\n/g, '<br />'); // Newlines
+  };
+
   return (
     <>
       <Card
-        title="Quản lý Khuyến mãi"
+        title="Quản lý Khuyến mãi & Marketing"
         icon={<TagIcon className="text-brand-primary" size={24} />}
         actions={canManage && (
             <div className="flex space-x-2">
+                <Button variant="secondary" onClick={() => setIsAiCampaignModalOpen(true)} leftIcon={<MegaphoneIcon size={18} />}>Gợi ý Chiến dịch</Button>
                 <Button variant="secondary" onClick={() => setIsAiSuggestModalOpen(true)} leftIcon={<SparklesIcon size={18} />}>Gợi ý KM bằng AI</Button>
                 <Button variant="primary" onClick={() => openModal('add')} leftIcon={<PlusCircleIcon size={18} />}>Tạo Mới</Button>
             </div>
@@ -771,6 +868,53 @@ const PromotionManagementPage: React.FC = () => {
                             ))}
                         </div>
                          <Button onClick={() => { setAiSuggestions(null); setAiPromoGoal(''); }} className="w-full mt-4" variant="secondary">Thử lại với mục tiêu khác</Button>
+                    </div>
+                )}
+            </div>
+        </Modal>
+      )}
+
+      {isAiCampaignModalOpen && (
+        <Modal isOpen={isAiCampaignModalOpen} onClose={() => setIsAiCampaignModalOpen(false)} title="Trợ lý AI Gợi ý Chiến dịch Marketing" size="xl">
+            <div className="space-y-4">
+                 {!aiCampaignProposal && !isGeneratingCampaign && (
+                    <>
+                        <p className="text-sm text-text-muted">AI sẽ phân tích sâu dữ liệu kinh doanh của bạn để đề xuất một chiến dịch marketing hoàn chỉnh. Hãy chọn mục tiêu chính:</p>
+                        <div className="flex flex-wrap gap-2">
+                            {commonGoals.map(goal => (
+                                <Button key={goal} variant="secondary" size="sm" onClick={() => handleGenerateCampaign(goal)}>{goal}</Button>
+                            ))}
+                        </div>
+                        <Input isTextArea rows={2} label="Hoặc nhập mục tiêu chi tiết hơn:" value={aiCampaignGoal} onChange={e => setAiCampaignGoal(e.target.value)} placeholder="VD: Tăng nhận diện thương hiệu tại khu vực Thủ Đức..." />
+                        <Button onClick={() => handleGenerateCampaign(aiCampaignGoal)} disabled={!aiCampaignGoal.trim()}>Tạo Đề xuất Chiến dịch</Button>
+                        <div className="text-xs text-text-muted p-3 bg-bg-subtle rounded-md space-y-1">
+                            <p className="font-semibold">Dữ liệu AI sẽ sử dụng để phân tích:</p>
+                            <p><strong>Doanh thu:</strong> <span className="italic">{revenueInsight}</span></p>
+                            <p><strong>Khách hàng:</strong> <span className="italic">{customerInsights}</span></p>
+                            <p><strong>Dịch vụ:</strong> <span className="italic">{serviceInsights}</span></p>
+                        </div>
+                    </>
+                 )}
+                
+                {isGeneratingCampaign && <div className="flex flex-col items-center justify-center h-48"><Spinner /><p className="mt-2 text-text-muted">AI đang xây dựng chiến lược...</p></div>}
+                {aiCampaignError && <p className="text-sm text-status-danger">{aiCampaignError}</p>}
+
+                {(aiCampaignProposal || aiCampaignError) && (
+                    <div className="mt-4 pt-4 border-t border-border-base">
+                        {aiCampaignProposal && (
+                             <>
+                                <h4 className="font-semibold text-text-heading mb-2">Đề xuất Chiến dịch Marketing từ AI:</h4>
+                                <div className="prose prose-sm max-w-none text-text-body whitespace-pre-wrap p-3 bg-bg-subtle rounded-md border border-border-base max-h-80 overflow-y-auto" 
+                                     dangerouslySetInnerHTML={{ __html: markdownToHtml(aiCampaignProposal) }}>
+                                </div>
+                             </>
+                        )}
+                        <Button 
+                            onClick={() => { setAiCampaignProposal(null); setAiCampaignGoal(''); setAiCampaignError(null); }} 
+                            className="w-full mt-4" 
+                            variant="secondary">
+                            Thử lại với mục tiêu khác
+                        </Button>
                     </div>
                 )}
             </div>
