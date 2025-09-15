@@ -291,68 +291,45 @@ type AppStateSetters = {
 export const seedInitialData = async (setters: AppStateSetters) => {
   const isDataSeeded = localStorage.getItem(LsKeys.USERS_KEY);
 
-  // Seed only if there's no user data, or if it's an empty array (cleared localStorage)
   if (!isDataSeeded || JSON.parse(isDataSeeded).length === 0) {
-    console.log("Seeding initial data into state...");
+    console.log("First-time setup: Initializing clean state with a permanent Chairman account...");
 
-    // 1. Hash passwords for mock users
-    const hashedUsers = await Promise.all(MOCK_USERS.map(async (user) => {
-        if (user.password) {
-            user.password = await simpleHash(user.password);
-        }
-        return user;
-    }));
-    setters.setUsersData(hashedUsers);
+    // 1. Create and hash password for the permanent Chairman user
+    const chairmanPassword = '000000';
+    const hashedChairmanPassword = await simpleHash(chairmanPassword);
 
-    // 2. Seed static data
-    setters.setServicesData(MOCK_SERVICES);
-    setters.setStoreProfilesData(MOCK_STORE_PROFILES);
-    setters.setMaterialItemDefinitionsData(INITIAL_MATERIAL_ITEM_DEFINITIONS);
-    setters.setSuppliersData([]); // Initialize with empty array
+    const chairmanUser: User = {
+      id: 'user_chairman_boss',
+      name: 'Chủ tịch Tập đoàn',
+      role: UserRole.CHAIRMAN,
+      phone: '0999999999',
+      username: 'chutich',
+      password: hashedChairmanPassword
+    };
 
-    // 3. Generate and seed dynamic data for each store owner
-    const customersForOrders = hashedUsers.filter(u => u.role === UserRole.CUSTOMER);
-    if(setters.setCustomersData) {
-        setters.setCustomersData(customersForOrders);
-    }
-    
+    // 2. Set the users data with only the Chairman
+    setters.setUsersData([chairmanUser]);
 
-    const storeOwners = hashedUsers.filter(u => u.role === UserRole.OWNER);
-    
-    let allOrders: Order[] = [];
-    let allFixedCosts: FixedCostItem[] = [];
-    let allVariableCosts: VariableCost[] = [];
-    let allInventory: InventoryItem[] = [];
-    let allMaterialOrders: MaterialOrder[] = [];
-
-    storeOwners.forEach(owner => {
-        const storeProfile = MOCK_STORE_PROFILES.find(p => p.ownerId === owner.id);
-        const storeNameForCosts = storeProfile ? storeProfile.storeName : owner.name;
-
-        allOrders.push(...createDemoOrders(customersForOrders, MOCK_SERVICES, hashedUsers, owner.id));
-        allFixedCosts.push(...createInitialFixedCosts(owner.id, storeNameForCosts));
-        allVariableCosts.push(...createDemoVariableCosts(owner.id));
-        allInventory.push(...createDemoInventory(owner.id));
-        allMaterialOrders.push(...createDemoMaterialOrders(owner.id, INITIAL_MATERIAL_ITEM_DEFINITIONS));
-    });
-
-    setters.setAllOrdersData(allOrders);
-    setters.setAllFixedCostsData(allFixedCosts);
-    setters.setAllVariableCostsData(allVariableCosts);
-    setters.setAllInventoryData(allInventory);
-    setters.setAllMaterialOrdersData(allMaterialOrders);
-
-    // 4. Initialize remaining data slices to empty arrays
+    // 3. Initialize all other data stores as empty arrays for a clean slate
+    setters.setCustomersData([]);
+    setters.setServicesData([]);
+    setters.setAllOrdersData([]);
+    setters.setAllInventoryData([]);
+    setters.setAllMaterialOrdersData([]);
+    setters.setMaterialItemDefinitionsData([]);
     setters.setAllNotificationsData([]);
+    setters.setAllVariableCostsData([]);
+    setters.setAllFixedCostsData([]);
+    setters.setStoreProfilesData([]);
+    setters.setPromotionsData([]);
+    setters.setFixedCostsUpdateHistoryData([]);
     setters.setServiceRatingsData([]);
     setters.setStaffRatingsData([]);
     setters.setTipsData([]);
     setters.setAllKpisData([]);
-    setters.setPromotionsData([]);
-    setters.setFixedCostsUpdateHistoryData([]);
     setters.setStoreUpdateHistoryData([]);
+    setters.setSuppliersData([]);
     
-    // A small delay to allow react to batch state updates before logging completion
-    setTimeout(() => console.log("Initial data seeding complete. State updated."), 100);
+    setTimeout(() => console.log("First-time setup complete. System is ready."), 100);
   }
 };
