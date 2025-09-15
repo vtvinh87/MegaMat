@@ -17,12 +17,12 @@ export const SEED_DEFAULT_PROCESSING_TIME_HOURS = 5;
 // Passwords are now in plain text and will be hashed on first seed.
 export const MOCK_USERS: User[] = [
   // Admins & Staff
-  { id: 'user_chairman_boss', name: 'Chủ tịch Tập đoàn', role: UserRole.CHAIRMAN, phone: '0999999999', username: 'chutich', password: '000000' },
-  { id: 'user_owner_dung', name: 'Chủ Tiệm Dung (Cửa hàng A)', role: UserRole.OWNER, phone: '0944444444', username: 'ct_dung', password: '000000', managedBy: 'user_chairman_boss' },
-  { id: 'user_manager_cuong', name: 'Quản Lý Cường (Cửa hàng A)', role: UserRole.MANAGER, phone: '0933333333', username: 'ql_cuong', password: '000000', managedBy: 'user_owner_dung' },
-  { id: 'user_staff_an', name: 'Nhân Viên An (Cửa hàng A)', role: UserRole.STAFF, phone: '0911111111', username: 'nv_an', password: '000000', managedBy: 'user_manager_cuong' },
-  { id: 'user_staff_binh', name: 'Nhân Viên Bình (Cửa hàng A)', role: UserRole.STAFF, phone: '0922222222', username: 'nv_binh', password: '000000', managedBy: 'user_manager_cuong' },
-  { id: 'owner001', name: 'Chủ Cửa Hàng B', role: UserRole.OWNER, username: 'chucuahang_b', password: '000000', phone: '0987654321', managedBy: 'user_chairman_boss' },
+  { id: 'user_chairman_boss', name: 'Chủ tịch Tập đoàn', role: UserRole.CHAIRMAN, phone: '0999999999', username: 'chutich', password: '000000', avatarUrl: 'https://placehold.co/100x100/E9D5FF/7C3AED/png?text=CT' },
+  { id: 'user_owner_dung', name: 'Chủ Tiệm Dung (Cửa hàng A)', role: UserRole.OWNER, phone: '0944444444', username: 'ct_dung', password: '000000', managedBy: 'user_chairman_boss', avatarUrl: 'https://placehold.co/100x100/D1FAE5/065F46/png?text=D' },
+  { id: 'user_manager_cuong', name: 'Quản Lý Cường (Cửa hàng A)', role: UserRole.MANAGER, phone: '0933333333', username: 'ql_cuong', password: '000000', managedBy: 'user_owner_dung', avatarUrl: 'https://placehold.co/100x100/DBEAFE/1D4ED8/png?text=C' },
+  { id: 'user_staff_an', name: 'Nhân Viên An (Cửa hàng A)', role: UserRole.STAFF, phone: '0911111111', username: 'nv_an', password: '000000', managedBy: 'user_manager_cuong', avatarUrl: 'https://placehold.co/100x100/FEF3C7/92400E/png?text=A' },
+  { id: 'user_staff_binh', name: 'Nhân Viên Bình (Cửa hàng A)', role: UserRole.STAFF, phone: '0922222222', username: 'nv_binh', password: '000000', managedBy: 'user_manager_cuong', avatarUrl: 'https://placehold.co/100x100/FEE2E2/B91C1C/png?text=B' },
+  { id: 'owner001', name: 'Chủ Cửa Hàng B', role: UserRole.OWNER, username: 'chucuahang_b', password: '000000', phone: '0987654321', managedBy: 'user_chairman_boss', avatarUrl: 'https://placehold.co/100x100/D1FAE5/065F46/png?text=B' },
   { id: 'manager001', name: 'Quản Lý Ca 1 (Cửa hàng B)', role: UserRole.MANAGER, username: 'quanly1_b', password: '000000', phone: '0987123456', managedBy: 'owner001' },
   { id: 'staff001', name: 'Nhân Viên Ca 1 (Cửa hàng B)', role: UserRole.STAFF, username: 'nhanvien1_b', password: '000000', phone: '0912345678', managedBy: 'manager001' },
   

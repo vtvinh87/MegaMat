@@ -1,5 +1,6 @@
 
 
+
 export interface WashMethodDefinition {
   id: string;
   name: string;
@@ -48,6 +49,7 @@ export interface User {
   phone: string; // Phone is now mandatory for all users
   username: string; // For staff/admin, this is their login. For customers, it's their phone.
   password?: string; // Hashed password
+  avatarUrl?: string; // URL for user's profile picture
   
   // Staff/Admin specific
   managedBy?: string; // ID of the user who manages this user

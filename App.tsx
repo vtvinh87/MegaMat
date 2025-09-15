@@ -1,6 +1,7 @@
 
 
 
+
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
@@ -30,6 +31,7 @@ import PromotionAnalyticsPage from './pages/admin/PromotionAnalyticsPage'; // Ne
 import CustomerLoginPage from './pages/auth/CustomerLoginPage'; // New Customer Login Page
 import CustomerDashboardPage from './pages/portal/CustomerDashboardPage'; // New Customer Portal Page
 import WashMethodManagementPage from './pages/admin/WashMethodManagementPage'; // New Wash Method Page
+import UserSettingsPage from './pages/admin/UserSettingsPage'; // New User Settings Page
 import { useAuth } from './contexts/AuthContext';
 import { UserRole } from './types';
 
@@ -118,6 +120,9 @@ const App: React.FC = () => {
               {isChairman && (
                 <Route path="/admin/stores" element={<StoreManagementPage />} />
               )}
+              
+              {/* NEW: User Settings for all admin users */}
+              <Route path="/admin/user-settings" element={<UserSettingsPage />} />
               
               <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             </>

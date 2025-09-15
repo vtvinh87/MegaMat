@@ -1,12 +1,22 @@
 
+
+
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { UserRole } from '../../types';
 import { APP_NAME } from '../../constants'; 
-import { HomeIcon, PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, SettingsIcon, BellIcon, MenuIcon, XIcon, SparklesIcon, TrendingUpIcon, LogOutIcon, LogInIcon, UserCircleIcon, UserCogIcon, BuildingIcon, FileTextIcon, MoonIcon, SunIcon, TagIcon, LayoutDashboard, DropletsIcon } from 'lucide-react';
+import { HomeIcon, PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, SettingsIcon, BellIcon, MenuIcon, XIcon, SparklesIcon, TrendingUpIcon, LogOutIcon, LogInIcon, UserCircleIcon, UserCogIcon, BuildingIcon, FileTextIcon, MoonIcon, SunIcon, TagIcon, LayoutDashboard, DropletsIcon, ChevronDownIcon, FolderKanbanIcon } from 'lucide-react';
 import { Button } from '../ui/Button';
+
+// NavItem type definition
+type NavItem = {
+  to?: string;
+  label: string;
+  icon: React.ReactNode;
+  children?: NavItem[];
+};
 
 export const Header: React.FC = () => {
   const { currentUser, logout } = useAuth(); 
@@ -27,7 +37,7 @@ export const Header: React.FC = () => {
   const isOwnerOrManager = currentUser && (currentUser.role === UserRole.OWNER || currentUser.role === UserRole.MANAGER);
   const isChairman = currentUser && currentUser.role === UserRole.CHAIRMAN;
 
-  let navItems = [];
+  let navItems: NavItem[] = [];
 
   if (isChairman) {
     navItems = [
@@ -39,27 +49,31 @@ export const Header: React.FC = () => {
       { to: "/admin/kpi-reports", label: "Báo cáo KPI Toàn Chuỗi", icon: <TrendingUpIcon size={20}/> },
     ];
   } else if (isAdminAreaUser) {
-    const baseNavItems = [
-      { to: "/admin/dashboard", label: "Tổng quan C.Hàng", icon: <HomeIcon size={20}/> },
-      { to: "/admin/orders", label: "Đơn hàng", icon: <PackageIcon size={20}/> },
+    const managementChildren: NavItem[] = [
       { to: "/admin/customers", label: "Khách hàng", icon: <UsersIcon size={20}/> },
       { to: "/admin/services", label: "Dịch vụ", icon: <SparklesIcon size={20}/> },
-      { to: "/admin/suppliers", label: "Nhà cung cấp", icon: <ShoppingBagIcon size={20}/> },
+    ];
+    if (isOwnerOrManager) {
+        managementChildren.push({ to: "/admin/wash-methods", label: "PP Giặt", icon: <DropletsIcon size={20}/> });
+    }
+    managementChildren.push({ to: "/admin/suppliers", label: "Nhà cung cấp", icon: <ShoppingBagIcon size={20}/> });
+    
+    const reportsChildren: NavItem[] = [
       { to: "/admin/inventory", label: "Tồn kho", icon: <BarChart2Icon size={20}/> },
       { to: "/admin/kpi-reports", label: "Báo cáo KPI", icon: <TrendingUpIcon size={20}/> },
       { to: "/admin/reports", label: "Báo cáo TC", icon: <FileTextIcon size={20}/> }
     ];
-    navItems = [...baseNavItems];
+
+    navItems = [
+      { to: "/admin/dashboard", label: "Tổng quan", icon: <HomeIcon size={20}/> },
+      { to: "/admin/orders", label: "Đơn hàng", icon: <PackageIcon size={20}/> },
+      { label: "Quản lý", icon: <FolderKanbanIcon size={20} />, children: managementChildren },
+      { label: "Báo cáo", icon: <BarChart2Icon size={20}/>, children: reportsChildren },
+    ];
     if (isOwnerOrManager) {
-      navItems.splice(4, 0, { to: "/admin/wash-methods", label: "PP Giặt", icon: <DropletsIcon size={20}/> });
       navItems.push({ to: "/admin/promotions", label: "Khuyến mãi", icon: <TagIcon size={20}/> });
       navItems.push({ to: "/admin/settings", label: "Cài đặt C.Hàng", icon: <SettingsIcon size={20}/> });
       navItems.push({ to: "/admin/users", label: "Người dùng C.Hàng", icon: <UserCogIcon size={20}/> });
-      const reportsTcIndex = navItems.findIndex(item => item.label === "Báo cáo TC");
-      if (reportsTcIndex !== -1 && reportsTcIndex !== navItems.length -1) {
-          const reportsTcItem = navItems.splice(reportsTcIndex, 1)[0];
-          navItems.push(reportsTcItem);
-      }
     }
   } else if (isCustomer) {
     navItems = [
@@ -89,11 +103,15 @@ export const Header: React.FC = () => {
             
             {(isAdminAreaUser || isCustomer) && (
               <nav className="hidden lg:flex items-center space-x-1">
-                {navItems.map(item => (
-                  <NavLink key={item.to} to={item.to} icon={item.icon} currentPath={location.pathname}>
-                    {item.label}
-                  </NavLink>
-                ))}
+                {navItems.map(item => 
+                  item.children ? (
+                    <DropdownNavLink key={item.label} item={item} currentPath={location.pathname} />
+                  ) : (
+                    <NavLink key={item.to} to={item.to!} icon={item.icon} currentPath={location.pathname}>
+                      {item.label}
+                    </NavLink>
+                  )
+                )}
               </nav>
             )}
 
@@ -116,13 +134,28 @@ export const Header: React.FC = () => {
                   </span>
                 )}
               </div>
+              {isAdminAreaUser && (
+                <Button
+                  variant="ghost" size="sm" onClick={() => navigate('/admin/user-settings')}
+                  className="text-text-muted hover:text-brand-primary p-2 rounded-lg hover:bg-bg-surface-hover"
+                  aria-label="Cài đặt người dùng" title="Cài đặt người dùng"
+                >
+                  <UserCogIcon size={20} />
+                </Button>
+              )}
 
               {currentUser ? (
                 <div className="hidden sm:flex items-center space-x-2">
-                  <span className="text-sm text-text-body">
-                    <UserCircleIcon size={18} className="inline mr-1 align-middle"/>
-                    {currentUser.name} <span className="text-xs text-text-muted">({currentUser.role})</span>
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    {currentUser.avatarUrl ? (
+                      <img src={currentUser.avatarUrl} alt={currentUser.name} className="h-7 w-7 rounded-full object-cover" />
+                    ) : (
+                      <UserCircleIcon size={24} className="text-text-muted" />
+                    )}
+                    <span className="text-sm text-text-body">
+                      {currentUser.name} <span className="text-xs text-text-muted">({currentUser.role})</span>
+                    </span>
+                  </div>
                   <Button variant="secondary" size="sm" onClick={handleLogout} leftIcon={<LogOutIcon size={16}/>}>Đăng xuất</Button>
                 </div>
               ) : (
@@ -174,19 +207,30 @@ export const Header: React.FC = () => {
           </div>
           
           {(isAdminAreaUser || isCustomer) && (
-            <nav className="flex-grow p-4 space-y-2 overflow-y-auto">
+            <nav className="flex-grow p-4 space-y-1 overflow-y-auto">
               {navItems.map((item, index) => (
-                <NavLink 
-                  key={item.to} 
-                  to={item.to} 
-                  icon={item.icon} 
-                  currentPath={location.pathname}
-                  className={`block w-full text-left transition-all duration-300 ease-out ${mobileMenuOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'}`}
-                  style={{ transitionDelay: `${50 + index * 30}ms` }}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {item.label}
-                </NavLink>
+                <div key={item.label + index}>
+                  {item.children ? (
+                    <>
+                      <div className="px-3 py-2 text-sm font-semibold text-text-muted flex items-center space-x-3 lg:space-x-2">
+                        {item.icon}<span>{item.label}</span>
+                      </div>
+                      <div className="pl-4">
+                        {item.children.map(child => (
+                           <NavLink 
+                              key={child.to} to={child.to!} icon={child.icon} currentPath={location.pathname}
+                              onClick={() => setMobileMenuOpen(false)}
+                            >{child.label}</NavLink>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <NavLink 
+                      key={item.to} to={item.to!} icon={item.icon} currentPath={location.pathname}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >{item.label}</NavLink>
+                  )}
+                </div>
               ))}
             </nav>
           )}
@@ -194,10 +238,17 @@ export const Header: React.FC = () => {
           <div className="p-4 border-t border-border-base flex-shrink-0">
             {currentUser ? (
                 <div className="space-y-3">
-                    <p className="px-3 py-2 text-sm text-text-body">
-                      <UserCircleIcon size={18} className="inline mr-2 align-middle"/>
-                      {currentUser.name} ({currentUser.role})
-                    </p>
+                    <div className="px-3 py-2 text-sm text-text-body flex items-center space-x-3">
+                      {currentUser.avatarUrl ? (
+                          <img src={currentUser.avatarUrl} alt={currentUser.name} className="h-8 w-8 rounded-full object-cover" />
+                      ) : (
+                          <UserCircleIcon size={28} className="text-text-muted" />
+                      )}
+                      <div>
+                        <p className="font-semibold">{currentUser.name}</p>
+                        <p className="text-xs text-text-muted">({currentUser.role})</p>
+                      </div>
+                    </div>
                     <Button variant="secondary" onClick={handleLogout} className="w-full" leftIcon={<LogOutIcon size={16}/>}>Đăng xuất</Button>
                 </div>
             ) : (
@@ -222,6 +273,7 @@ interface NavLinkProps {
   onClick?: () => void;
   style?: React.CSSProperties;
 }
+
 const NavLink: React.FC<NavLinkProps> = ({ to, children, icon, currentPath, className, onClick, style }) => {
   const isDashboard = to.endsWith("dashboard");
   const isActive = isDashboard 
@@ -234,7 +286,7 @@ const NavLink: React.FC<NavLinkProps> = ({ to, children, icon, currentPath, clas
       onClick={onClick}
       style={style}
       className={`
-        px-3 py-2 rounded-lg text-base lg:text-sm font-medium flex items-center space-x-3 lg:space-x-2 transition-all duration-200 ease-in-out
+        w-full px-3 py-2 rounded-lg text-base lg:text-sm font-medium flex items-center space-x-3 lg:space-x-2 transition-all duration-200 ease-in-out
         group
         ${isActive 
           ? 'bg-brand-primary/10 text-brand-primary font-semibold' 
@@ -247,4 +299,43 @@ const NavLink: React.FC<NavLinkProps> = ({ to, children, icon, currentPath, clas
       <span>{children}</span>
     </Link>
   );
-}
+};
+
+// Dropdown component for header
+const DropdownNavLink: React.FC<{ item: NavItem; currentPath: string }> = ({ item, currentPath }) => {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const isActive = item.children?.some(child => child.to && currentPath.startsWith(child.to));
+  
+    return (
+      <div className="relative" onMouseEnter={() => setIsOpen(true)} onMouseLeave={() => setIsOpen(false)}>
+        <button
+          className={`
+            px-3 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200 ease-in-out group
+            ${isActive ? 'bg-brand-primary/10 text-brand-primary font-semibold' : 'text-text-body hover:text-brand-primary hover:bg-blue-500/5'}
+          `}
+        >
+          {item.icon && React.cloneElement(item.icon as React.ReactElement<{ className?: string }>, { className: `flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-brand-primary' : 'text-text-muted group-hover:text-brand-primary'}`})}
+          <span>{item.label}</span>
+          <ChevronDownIcon size={16} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isOpen && (
+          <div className="absolute top-full left-0 mt-2 w-56 rounded-md shadow-lg bg-bg-surface ring-1 ring-black ring-opacity-5 z-50 animate-fadeIn">
+            <div className="py-1" role="menu" aria-orientation="vertical">
+              {item.children?.map(child => (
+                <NavLink
+                  key={child.to}
+                  to={child.to!}
+                  icon={child.icon}
+                  currentPath={currentPath}
+                  className="w-full !rounded-none !text-sm"
+                  onClick={() => setIsOpen(false)}
+                >
+                  {child.label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+};
