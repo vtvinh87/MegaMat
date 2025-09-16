@@ -1,6 +1,3 @@
-
-
-
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -55,6 +52,7 @@ export const Header: React.FC = () => {
     ];
     if (isOwnerOrManager) {
         managementChildren.push({ to: "/admin/wash-methods", label: "PP Giặt", icon: <DropletsIcon size={20}/> });
+        managementChildren.push({ to: "/admin/users", label: "Người dùng", icon: <UserCogIcon size={20}/> });
     }
     managementChildren.push({ to: "/admin/suppliers", label: "Nhà cung cấp", icon: <ShoppingBagIcon size={20}/> });
     
@@ -73,7 +71,6 @@ export const Header: React.FC = () => {
     if (isOwnerOrManager) {
       navItems.push({ to: "/admin/promotions", label: "Khuyến mãi", icon: <TagIcon size={20}/> });
       navItems.push({ to: "/admin/settings", label: "Cài đặt C.Hàng", icon: <SettingsIcon size={20}/> });
-      navItems.push({ to: "/admin/users", label: "Người dùng C.Hàng", icon: <UserCogIcon size={20}/> });
     }
   } else if (isCustomer) {
     navItems = [

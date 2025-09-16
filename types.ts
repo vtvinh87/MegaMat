@@ -494,7 +494,7 @@ export interface AppContextType extends AppData {
 
   // User Management
   addUser: (userData: Omit<User, 'id'> & { managedBy?: string }, storeProfileData?: Omit<StoreProfile, 'ownerId'>) => Promise<User | null>; // Returns created User on success
-  updateUser: (userData: User, storeProfileData?: Partial<Omit<StoreProfile, 'ownerId'>>) => Promise<boolean>; // Updated
+  updateUser: (userData: Partial<User> & { id: string }, storeProfileData?: Partial<Omit<StoreProfile, 'ownerId'>>) => Promise<boolean>; // Updated
   deleteUser: (userId: string) => void;
 
   // Store Profile Management

@@ -40,6 +40,7 @@ export const OrderCreatePage: React.FC = () => {
     getCurrentUserOwnerId,
     findPromotionByCode,
     washMethods,
+    promotions,
   } = useData();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -246,6 +247,90 @@ export const OrderCreatePage: React.FC = () => {
       return sum;
     }, 0);
   }, [orderItems, appContextServices]);
+  
+    // --- START: New Promotion Logic ---
+    const availablePromotions = useMemo(() => {
+        const now = new Date();
+        const today = now.getDay(); // 0 for Sunday
+    
+        const customerForCheck = resolvedCustomer || editingOrder?.customer;
+    
+        const applicablePromos = promotions.filter(p => {
+            // Basic checks: active, in-store, date range, usage limit
+            if (!p.isActive || (p.applicableChannels && p.applicableChannels.length > 0 && !p.applicableChannels.includes('instore'))) return false;
+            if (p.startDate && new Date(p.startDate) > now) return false;
+            if (p.endDate && new Date(p.endDate) < now) return false;
+            if (p.usageLimit && p.timesUsed >= p.usageLimit) return false;
+            
+            // Day of week
+            if (p.applicableDaysOfWeek && p.applicableDaysOfWeek.length > 0 && !p.applicableDaysOfWeek.includes(today)) {
+                return false;
+            }
+    
+            // Customer usage limit
+            if (p.usageLimitPerCustomer) {
+                if (!customerForCheck) {
+                    return false; // Can't check a per-customer promo without a customer
+                }
+                const timesUsedByCustomer = (p.usedByCustomerIds || []).filter(id => id === customerForCheck.id).length;
+                if (timesUsedByCustomer >= p.usageLimitPerCustomer) {
+                    return false;
+                }
+            }
+            
+            // Order value check
+            if (p.minOrderAmount && subtotal < p.minOrderAmount) {
+                return false;
+            }
+            
+            // Item-specific checks (only if items exist in cart)
+            if (orderItems.length > 0) {
+                if (p.applicableServiceIds && p.applicableServiceIds.length > 0) {
+                    const hasApplicableService = orderItems.some(localItem => {
+                        const service = appContextServices.find(s => s.name === localItem.serviceNameKey && s.washMethodId === localItem.selectedWashMethodId);
+                        return service && p.applicableServiceIds!.includes(service.id);
+                    });
+                    if (!hasApplicableService) return false;
+                }
+                if (p.applicableWashMethodIds && p.applicableWashMethodIds.length > 0) {
+                    const hasApplicableWashMethod = orderItems.some(localItem => 
+                        p.applicableWashMethodIds!.includes(localItem.selectedWashMethodId)
+                    );
+                    if (!hasApplicableWashMethod) return false;
+                }
+            } else if ((p.applicableServiceIds && p.applicableServiceIds.length > 0) || (p.applicableWashMethodIds && p.applicableWashMethodIds.length > 0)) {
+                // If promo requires specific items but cart is empty, don't show it
+                return false;
+            }
+    
+            return true;
+        });
+    
+        // Calculate real discount for each applicable promo and sort them
+        return applicablePromos.map(promo => {
+            let discount = 0;
+            if (promo.discountType === 'fixed_amount') {
+                discount = Math.min(subtotal, promo.discountValue);
+            } else { // percentage
+                const calculated = subtotal * (promo.discountValue / 100);
+                discount = promo.maxDiscountAmount ? Math.min(calculated, promo.maxDiscountAmount) : calculated;
+            }
+            return { ...promo, calculatedDiscount: discount };
+        }).sort((a, b) => b.calculatedDiscount - a.calculatedDiscount);
+    
+    }, [promotions, subtotal, resolvedCustomer, orderItems, appContextServices, washMethods, isEditMode, editingOrder]);
+
+    const promotionOptions = useMemo(() => {
+        return [
+            { value: '', label: '-- Chọn KM gợi ý --' },
+            ...availablePromotions.map(p => ({
+                value: p.code,
+                label: `${p.name} (${p.code}) - Giảm ~${p.calculatedDiscount.toLocaleString('vi-VN')} VNĐ`
+            }))
+        ];
+    }, [availablePromotions]);
+    // --- END: New Promotion Logic ---
+
 
   const promotionDiscount = useMemo(() => {
     if (!appliedPromotion) return 0;
@@ -673,20 +758,30 @@ export const OrderCreatePage: React.FC = () => {
             <legend className="text-lg font-semibold text-text-heading mb-3 px-2 flex items-center -ml-2">
                 <TagIcon size={22} className="mr-2 text-brand-primary"/>Khuyến mãi & Thanh toán
             </legend>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <Input 
-                    label="Mã khuyến mãi (voucher)"
-                    value={voucherCode}
-                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                    placeholder="Nhập mã..."
-                    disabled={!!appliedPromotion}
-                    wrapperClassName="md:col-span-2"
+            <div className="space-y-3">
+                 <Select
+                    label="Khuyến mãi có thể áp dụng (ưu đãi tốt nhất xếp trên)"
+                    options={promotionOptions}
+                    onChange={(e) => setVoucherCode(e.target.value)}
+                    disabled={promotionOptions.length <= 1}
+                    wrapperClassName="w-full"
+                    value={appliedPromotion ? '' : voucherCode} // Clear selection visually if a code is manually typed
                 />
-                 {appliedPromotion ? (
-                    <Button onClick={handleRemoveVoucher} variant="secondary">Hủy mã</Button>
-                ) : (
-                    <Button onClick={handleApplyVoucher}>Áp dụng</Button>
-                )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <Input 
+                        label="Hoặc nhập mã thủ công"
+                        value={voucherCode}
+                        onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                        placeholder="Nhập mã..."
+                        disabled={!!appliedPromotion}
+                        wrapperClassName="md:col-span-2"
+                    />
+                     {appliedPromotion ? (
+                        <Button type="button" onClick={handleRemoveVoucher} variant="secondary">Hủy mã</Button>
+                    ) : (
+                        <Button type="button" onClick={handleApplyVoucher}>Áp dụng</Button>
+                    )}
+                </div>
             </div>
             {promotionError && <p className="text-xs text-status-danger mt-1">{promotionError}</p>}
             {appliedPromotion && (

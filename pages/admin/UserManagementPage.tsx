@@ -36,6 +36,8 @@ const UserManagementPage: React.FC = () => {
 
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
 
+  const internalUsers = useMemo(() => users.filter(u => u.role !== UserRole.CUSTOMER), [users]);
+
   const toggleExpandNode = (userId: string) => {
     setExpandedNodes(prev => ({ ...prev, [userId]: !prev[userId] }));
   };
@@ -52,8 +54,8 @@ const UserManagementPage: React.FC = () => {
       const newExpandedState = { ...prevExpandedNodes };
       let needsUpdate = false;
 
-      users.forEach(user => {
-        const hasChildren = findUsersByManagerId(user.id).length > 0;
+      internalUsers.forEach(user => {
+        const hasChildren = findUsersByManagerId(user.id).filter(u => u.role !== UserRole.CUSTOMER).length > 0;
         const isPrivilegedRole = user.role === UserRole.OWNER || user.role === UserRole.MANAGER || user.role === UserRole.CHAIRMAN;
 
         if (newExpandedState[user.id] === undefined) { 
@@ -66,29 +68,29 @@ const UserManagementPage: React.FC = () => {
       });
 
       Object.keys(newExpandedState).forEach(userId => {
-        if (!users.find(u => u.id === userId)) {
+        if (!internalUsers.find(u => u.id === userId)) {
           delete newExpandedState[userId];
           needsUpdate = true;
         }
       });
       return needsUpdate ? newExpandedState : prevExpandedNodes;
     });
-  }, [users, findUsersByManagerId]);
+  }, [internalUsers, findUsersByManagerId]);
 
   useEffect(() => {
     if (searchTerm) {
       const lowerSearchTerm = searchTerm.toLowerCase();
       const usersToExpand = new Set<string>();
 
-      users.forEach(u => {
+      internalUsers.forEach(u => {
         if (u.name.toLowerCase().includes(lowerSearchTerm) || u.username.toLowerCase().includes(lowerSearchTerm)) {
           let current: User | undefined = u;
           while (current) {
-            if (findUsersByManagerId(current.id).length > 0) {
+            if (findUsersByManagerId(current.id).filter(u => u.role !== UserRole.CUSTOMER).length > 0) {
                  usersToExpand.add(current.id);
             }
             if (!current.managedBy) break;
-            current = users.find(m => m.id === current!.managedBy);
+            current = internalUsers.find(m => m.id === current!.managedBy);
           }
         }
       });
@@ -107,7 +109,7 @@ const UserManagementPage: React.FC = () => {
         });
       }
     }
-  }, [searchTerm, users, findUsersByManagerId]);
+  }, [searchTerm, internalUsers, findUsersByManagerId]);
 
 
   const canCurrentUserManageRole = (targetRole?: UserRole, contextUser?: Partial<User> | null): boolean => {
@@ -253,7 +255,6 @@ const UserManagementPage: React.FC = () => {
         [targetName]: value === '' ? undefined : Number(value)
     };
     
-    // Clean up undefined properties
     Object.keys(newKpiTargets).forEach(key => {
         if (newKpiTargets[key as keyof typeof newKpiTargets] === undefined) {
             delete newKpiTargets[key as keyof typeof newKpiTargets];
@@ -272,7 +273,7 @@ const UserManagementPage: React.FC = () => {
     setFormError(null);
     if (!editingUser || !currentUser) return;
 
-    let { name, username, password, passwordConfirmation, role, phone, managedBy, storeName, kpiTargets } = editingUser;
+    const { name, username, password, passwordConfirmation, role, phone, managedBy, storeName, kpiTargets } = editingUser;
 
     if (!name?.trim() || !username?.trim() || !role) {
       setFormError('Tên, tên đăng nhập và vai trò là bắt buộc.');
@@ -347,22 +348,25 @@ const UserManagementPage: React.FC = () => {
       userData.managedBy = managingUserId || undefined;
       if (userData.role === UserRole.CHAIRMAN) userData.managedBy = undefined;
 
-      // FIX: The `addUser` function returns the created user object on success and null on failure.
-      // We check for a truthy value to correctly set the boolean `success` flag.
       const newUser = await addUser(userData as Omit<User, 'id'> & { managedBy?: string }, storeProfilePayload);
       success = !!newUser;
     } else if (editingUser.id) {
-      const existingOriginalUser = users.find(u => u.id === editingUser.id);
-      const finalUserData: User = {
-          ...(existingOriginalUser || {}), 
-          ...editingUser, 
-          ...userData, 
-          id: editingUser.id, 
-          password: password ? password : undefined, // Send new password or undefined
-          managedBy: userData.managedBy, 
-      };
-      success = await updateUser(finalUserData, undefined);
+        const payloadForUpdate: Partial<User> & { id: string } = {
+            id: editingUser.id,
+            name: name.trim(),
+            role: role,
+            phone: phone?.trim() || undefined,
+            managedBy: role === UserRole.CHAIRMAN ? undefined : managedBy,
+            kpiTargets: (kpiTargets && Object.keys(kpiTargets).length > 0) ? kpiTargets : undefined,
+        };
+        
+        if (password && password.trim()) {
+            payloadForUpdate.password = password;
+        }
+        
+        success = await updateUser(payloadForUpdate, undefined);
     }
+
 
     if (success) {
       closeModal();
@@ -407,17 +411,17 @@ const UserManagementPage: React.FC = () => {
   };
 
   const renderUserTree = (currentManagerId: string | null, level: number): JSX.Element[] => {
-    let usersToRender = findUsersByManagerId(currentManagerId);
+    let usersToRender = findUsersByManagerId(currentManagerId).filter(u => u.role !== UserRole.CUSTOMER);
 
     if (searchTerm) {
       const lowerSearchTerm = searchTerm.toLowerCase();
-      usersToRender = users.filter(u => { 
+      usersToRender = internalUsers.filter(u => { 
         const isDirectMatch = (u.name.toLowerCase().includes(lowerSearchTerm) || u.username.toLowerCase().includes(lowerSearchTerm));
         if (isDirectMatch) return true;
 
         let currentAncestor: User | undefined = u;
         while(currentAncestor?.managedBy) {
-            const parent = users.find(p => p.id === currentAncestor!.managedBy);
+            const parent = internalUsers.find(p => p.id === currentAncestor!.managedBy);
             if (parent && expandedNodes[parent.id]) { 
                 if(u.managedBy === currentManagerId) return true; 
             }
@@ -443,7 +447,7 @@ const UserManagementPage: React.FC = () => {
             onAddSubordinate={(managerId, managerRole) => openModal('add', null, managerId)}
             onEdit={editUser => openModal('edit', editUser)}
             onDelete={deleteCandidate => openDeleteConfirm(deleteCandidate)}
-            managedUsers={findUsersByManagerId(user.id)}
+            managedUsers={findUsersByManagerId(user.id).filter(u => u.role !== UserRole.CUSTOMER)}
             isExpanded={expandedNodes[user.id] || false}
             onToggleExpand={toggleExpandNode}
             searchTerm={searchTerm}

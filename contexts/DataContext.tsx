@@ -1,5 +1,6 @@
 
 
+
 import { createContext, useContext } from 'react';
 import { 
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
@@ -74,7 +75,7 @@ export interface DataContextType {
   calculateAndStoreKPIsForAllStaff: (periodType: KpiPeriodType, referenceDate: Date) => Promise<void>;
   getKPIs: (filters: { userId?: string; periodType?: KpiPeriodType; startDate?: Date; endDate?: Date; ownerIdFilter?: string; }) => KPI[];
   addUser: (userData: Omit<User, 'id'> & { managedBy?: string; }, storeProfileData?: Omit<StoreProfile, 'ownerId'>) => Promise<User | null>;
-  updateUser: (userData: User, storeProfileData?: Partial<Omit<StoreProfile, 'ownerId'>>) => Promise<boolean>;
+  updateUser: (userData: Partial<User> & { id: string }, storeProfileData?: Partial<Omit<StoreProfile, 'ownerId'>>) => Promise<boolean>;
   deleteUser: (userId: string) => void;
   updateStoreProfile: (profileData: Partial<StoreProfile> & { ownerId: string; }, reason: string) => void;
   findStoreProfileByOwnerId: (ownerId: string) => StoreProfile | undefined;

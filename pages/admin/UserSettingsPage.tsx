@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
@@ -67,19 +68,22 @@ const UserSettingsPage: React.FC = () => {
     if (avatarFile) {
       avatarUrlToSave = await fileToBase64(avatarFile);
     }
-
-    const updatedUserData: User = {
-      ...currentUser,
+    
+    // Xây dựng một đối tượng chỉ chứa các trường dữ liệu đã thay đổi.
+    // Điều này đảm bảo chúng ta không gửi lại mật khẩu cũ đã được mã hóa.
+    const updatePayload: Partial<User> & { id: string } = {
+      id: currentUser.id,
       name: name,
       address: address || undefined,
       avatarUrl: avatarUrlToSave,
     };
     
+    // Chỉ thêm mật khẩu vào đối tượng cập nhật nếu người dùng đã nhập mật khẩu mới.
     if (newPassword) {
-      updatedUserData.password = newPassword;
+      updatePayload.password = newPassword;
     }
 
-    const success = await updateUser(updatedUserData);
+    const success = await updateUser(updatePayload);
     setIsSaving(false);
 
     if (success) {

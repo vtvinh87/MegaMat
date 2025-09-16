@@ -715,7 +715,7 @@ const PromotionManagementPage: React.FC = () => {
       
       {isModalOpen && currentPromotion && canManage && (
         <Modal isOpen={isModalOpen} onClose={closeModal} title={modalMode === 'add' ? 'Tạo Khuyến mãi' : 'Sửa Khuyến mãi'} size="xl">
-          <form onSubmit={handleSave} className="space-y-4 pt-2 max-h-[80vh] overflow-y-auto pr-2">
+          <form onSubmit={handleSave} className="space-y-4 pt-2">
             {formError && <p className="text-sm text-status-danger flex items-center"><AlertTriangle size={16} className="mr-1.5"/>{formError}</p>}
             
             {isChairman && modalMode === 'add' && (

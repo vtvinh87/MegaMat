@@ -124,34 +124,46 @@ export const useUserManagement = ({
     return newUser;
   }, [usersData, addNotification, setUsersData, setStoreProfilesData]);
 
-  const updateUser = useCallback(async (userData: User, storeProfileData?: Partial<Omit<StoreProfile, 'ownerId'>>): Promise<boolean> => {
-    const existingUser = usersData.find(u => u.id === userData.id);
-    if (!existingUser) {
-        addNotification({ message: `Không tìm thấy người dùng để cập nhật.`, type: 'error', showToast: true });
+  const updateUser = useCallback(async (userData: Partial<User> & { id: string }, storeProfileData?: Partial<Omit<StoreProfile, 'ownerId'>>): Promise<boolean> => {
+    // Tạo một bản sao có thể thay đổi của các thông tin cập nhật.
+    const updates = { ...userData };
+
+    // Xác thực tính duy nhất của username nếu nó đang được thay đổi.
+    if (updates.username && usersData.some(u => u.username.toLowerCase() === updates.username!.toLowerCase() && u.id !== updates.id)) {
+        addNotification({ message: `Tên đăng nhập "${updates.username}" đã tồn tại.`, type: 'error', showToast: true });
         return false;
     }
-
-    if (usersData.some(u => u.username.toLowerCase() === userData.username.toLowerCase() && u.id !== userData.id)) {
-        addNotification({ message: `Tên đăng nhập "${userData.username}" đã tồn tại.`, type: 'error', showToast: true });
-        return false;
-    }
-
-    let finalUserData = { ...userData };
-    if (userData.password) {
-        finalUserData.password = await simpleHash(userData.password);
+    
+    // Xử lý cập nhật mật khẩu một cách an toàn.
+    // Chỉ mã hóa và bao gồm mật khẩu nếu một mật khẩu mới, không rỗng được cung cấp.
+    if (updates.password && updates.password.trim()) {
+        updates.password = await simpleHash(updates.password);
     } else {
-        finalUserData.password = existingUser.password;
+        // Nếu mật khẩu là rỗng, không xác định, hoặc chỉ chứa khoảng trắng, XÓA nó khỏi đối tượng cập nhật.
+        // Đây là bước quan trọng để ngăn chặn việc ghi đè lên mật khẩu hợp lệ hiện có.
+        delete updates.password;
     }
+
+    setUsersData(prevUsers =>
+        prevUsers.map(user => {
+            if (user.id === updates.id) {
+                // Áp dụng các thay đổi đã được làm sạch vào người dùng hiện có.
+                const updatedUser = { ...user, ...updates };
+                addNotification({ message: `Đã cập nhật người dùng: ${updatedUser.name}`, type: 'info', showToast: true });
+
+                // Xử lý cập nhật hồ sơ cửa hàng liên quan cho chủ sở hữu.
+                if (updatedUser.role === UserRole.OWNER && storeProfileData) {
+                    updateStoreProfile({ ...storeProfileData, ownerId: updatedUser.id }, "Cập nhật thông tin người dùng chủ sở hữu.");
+                }
+                
+                return updatedUser;
+            }
+            return user;
+        })
+    );
     
-    setUsersData(prev => prev.map(u => (u.id === finalUserData.id ? finalUserData : u)));
-    
-    if (finalUserData.role === UserRole.OWNER && storeProfileData) {
-        updateStoreProfile({ ...storeProfileData, ownerId: finalUserData.id }, "Cập nhật thông tin người dùng chủ sở hữu.");
-    }
-    
-    addNotification({ message: `Đã cập nhật người dùng: ${finalUserData.name}`, type: 'info', showToast: true });
     return true;
-  }, [usersData, addNotification, setUsersData, updateStoreProfile]);
+}, [usersData, setUsersData, addNotification, updateStoreProfile]);
   
   const deleteUser = useCallback((userId: string) => {
     const userToDelete = usersData.find(u => u.id === userId);
