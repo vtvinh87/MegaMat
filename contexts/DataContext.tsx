@@ -1,4 +1,5 @@
 
+
 import { createContext, useContext } from 'react';
 import { 
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
@@ -78,7 +79,7 @@ export interface DataContextType {
   updateStoreProfile: (profileData: Partial<StoreProfile> & { ownerId: string; }, reason: string) => void;
   findStoreProfileByOwnerId: (ownerId: string) => StoreProfile | undefined;
   deleteStoreAndOwner: (ownerId: string, reason: string) => void;
-  addPromotion: (promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId' | 'status' | 'createdBy' | 'approvedBy' | 'approvedAt' | 'rejectionReason'> & { isSystemWide?: boolean, isActive?: boolean }) => void;
+  addPromotion: (promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId' | 'status' | 'createdBy' | 'approvedBy' | 'approvedAt' | 'rejectionReason' | 'managerReports'> & { isSystemWide?: boolean, isActive?: boolean }) => void;
   updatePromotion: (promotionData: Promotion) => void;
   deletePromotion: (promotionId: string) => void;
   approvePromotion: (promotionId: string) => void;
@@ -91,6 +92,8 @@ export interface DataContextType {
   acknowledgeSystemPromo: (promotionId: string) => void;
   acknowledgeCancelRequest: (promotionId: string) => void;
   acknowledgeOptOutRequest: (promotionId: string, storeOwnerId: string) => void;
+  addManagerReport: (promotionId: string, reason: string) => void;
+  resolveManagerReport: (promotionId: string, reportId: string) => void;
   addWashMethod: (methodData: Omit<WashMethodDefinition, 'id' | 'ownerId'>) => void;
   updateWashMethod: (method: WashMethodDefinition) => void;
   deleteWashMethod: (methodId: string) => void;

@@ -97,9 +97,8 @@ const DashboardCharts = () => {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              {/* FIX: The 'percent' property from recharts can be undefined, causing an arithmetic error when multiplying. Coalescing to 0 ensures the operation is always valid. */}
-              {/* FIX: The 'percent' property from recharts can be undefined. Coalesce to 0 to prevent arithmetic error. */}
-              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}>
+              {/* FIX: The 'percent' property from the recharts Pie component can be undefined. This can cause a type error when performing arithmetic operations. Coalescing the value to 0 ensures it's always a number. */}
+              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}>
                 {orderStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name as keyof typeof PIE_COLORS]} />
                 ))}
@@ -486,6 +485,12 @@ const AdminDashboardPage: React.FC = () => {
       return false;
     }).length;
   }, [promotions, currentUser, findUserById]);
+  
+  const pendingManagerReportsCount = useMemo(() => {
+    if (currentUser?.role !== UserRole.OWNER) return 0;
+    return promotions.filter(p => p.ownerId === currentUser.id && p.managerReports?.some(r => r.status === 'pending')).length;
+  }, [promotions, currentUser]);
+
 
   const quickStats: QuickStat[] = [
     { title: 'Đơn hàng chờ xác nhận', value: waitingForConfirmationCount, link: '/admin/orders?status=WAITING_FOR_CONFIRMATION', icon: <MessageSquareIcon />, colorClass: 'text-purple-700', iconBgClass: 'bg-purple-100' },
@@ -495,7 +500,7 @@ const AdminDashboardPage: React.FC = () => {
     { title: 'Mặt hàng tồn kho', value: inventory.length, link: '/admin/inventory', icon: <BarChart2Icon />, colorClass: 'text-brand-primary', iconBgClass: 'bg-blue-100' },
   ];
 
-  const hasAlerts = lowStockItemsCount > 0 || pendingMaterialOrdersCount > 0 || pendingPromotionsForApprovalCount > 0;
+  const hasAlerts = lowStockItemsCount > 0 || pendingMaterialOrdersCount > 0 || pendingPromotionsForApprovalCount > 0 || pendingManagerReportsCount > 0;
 
   return (
     <div className="space-y-6">
@@ -521,6 +526,12 @@ const AdminDashboardPage: React.FC = () => {
                         <li className="flex items-center">
                             <ArrowRightIcon size={16} className="mr-2"/>
                             <Link to="/admin/promotions" className="hover:underline">Có <strong>{pendingPromotionsForApprovalCount}</strong> chương trình khuyến mãi đang chờ bạn duyệt.</Link>
+                        </li>
+                    )}
+                    {pendingManagerReportsCount > 0 && currentUser?.role === UserRole.OWNER && (
+                        <li className="flex items-center">
+                            <ArrowRightIcon size={16} className="mr-2"/>
+                            <Link to="/admin/promotions" className="hover:underline">Có <strong>{pendingManagerReportsCount}</strong> báo cáo khuyến mãi từ quản lý cần xem xét.</Link>
                         </li>
                     )}
                 </ul>

@@ -8,7 +8,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { Input } from '../../components/ui/Input';
-import { FilterIcon, ShoppingCart, CalendarDays, UserCircle, MessageSquare, Check, X, PlusCircleIcon, Trash2Icon, DollarSignIcon, Edit3Icon } from 'lucide-react';
+import { FilterIcon, ShoppingCart, CalendarDays, UserCircle, MessageSquare, Check, X, PlusCircleIcon, Trash2Icon, DollarSignIcon, Edit3Icon, FileText } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 type MaterialOrderStatusFilter = MaterialOrder['status'] | 'all';
@@ -349,6 +349,7 @@ const MaterialOrderManagementPage: React.FC = () => {
   ];
 
   const tableHeaders = [
+    { label: "Nguyên vật liệu chính", icon: <FileText size={14} /> },
     { label: "Mã Đặt NVL", icon: <ShoppingCart size={14} /> },
     { label: "Người tạo", icon: <UserCircle size={14} /> },
     { label: "Ngày tạo", icon: <CalendarDays size={14} /> },
@@ -403,6 +404,12 @@ const MaterialOrderManagementPage: React.FC = () => {
                   const statusInfo = getStatusClassAndText(order.status);
                   return (
                     <tr key={order.id} className="hover:bg-bg-surface-hover transition-colors">
+                      <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body max-w-xs truncate">
+                        <span title={order.items.map(item => `${item.nameSnapshot} (SL: ${item.quantity})`).join(', ')}>
+                          {order.items[0]?.nameSnapshot || 'N/A'}
+                          {order.items.length > 1 && <span className="text-text-muted text-xs ml-1">(+{order.items.length - 1})</span>}
+                        </span>
+                      </td>
                       <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-text-link hover:underline">
                         <Link to={`/admin/material-orders/${order.id}`}>{order.id}</Link>
                       </td>

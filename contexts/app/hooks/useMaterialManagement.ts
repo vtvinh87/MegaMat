@@ -1,7 +1,8 @@
 
+
 import { useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { UserRole, MaterialOrder, MaterialItemDefinition, MaterialOrderItemDetail } from '../../../types';
+import { UserRole, MaterialOrder, MaterialItemDefinition, MaterialOrderItemDetail, InventoryItem } from '../../../types';
 
 type Props = {
   currentUserOwnerId: string | null;
@@ -9,6 +10,8 @@ type Props = {
   setMaterialItemDefinitionsData: React.Dispatch<React.SetStateAction<MaterialItemDefinition[]>>;
   allMaterialOrdersData: MaterialOrder[];
   setAllMaterialOrdersData: React.Dispatch<React.SetStateAction<MaterialOrder[]>>;
+  allInventoryData: InventoryItem[]; // New: For auto-update
+  setAllInventoryData: React.Dispatch<React.SetStateAction<InventoryItem[]>>; // New
   addNotification: (notification: any) => void;
 };
 
@@ -18,6 +21,8 @@ export const useMaterialManagement = ({
   setMaterialItemDefinitionsData,
   allMaterialOrdersData,
   setAllMaterialOrdersData,
+  allInventoryData, // New
+  setAllInventoryData, // New
   addNotification,
 }: Props) => {
   const addMaterialOrder = useCallback((orderData: { items: Array<{ materialItemDefinitionId: string; quantity: number; itemNotes?: string }>; createdBy: UserRole; notes?: string; }) => {
@@ -56,6 +61,59 @@ export const useMaterialManagement = ({
   }, [currentUserOwnerId, materialItemDefinitionsData, addNotification, setAllMaterialOrdersData]);
 
   const approveMaterialOrder = useCallback((orderId: string, approvedBy: UserRole, notes?: string) => {
+    const orderToApprove = allMaterialOrdersData.find(o => o.id === orderId);
+    if (!orderToApprove) {
+        addNotification({ message: `Không tìm thấy đơn đặt hàng ${orderId} để duyệt.`, type: 'error', showToast: true });
+        return;
+    }
+
+    // --- START: Inventory Auto-update Logic ---
+    setAllInventoryData(prevInventory => {
+        let updatedInventory = [...prevInventory];
+        let notificationsForInventory: string[] = [];
+
+        orderToApprove.items.forEach(orderItem => {
+            const existingInventoryItemIndex = updatedInventory.findIndex(invItem => 
+                invItem.name.toLowerCase() === orderItem.nameSnapshot.toLowerCase() &&
+                invItem.ownerId === orderToApprove.ownerId
+            );
+
+            if (existingInventoryItemIndex > -1) {
+                // Item exists, update quantity
+                const existingItem = updatedInventory[existingInventoryItemIndex];
+                updatedInventory[existingInventoryItemIndex] = {
+                    ...existingItem,
+                    quantity: existingItem.quantity + orderItem.quantity,
+                };
+                notificationsForInventory.push(`- ${orderItem.nameSnapshot}: +${orderItem.quantity}`);
+            } else {
+                // Item does not exist, create new one
+                const newInventoryItem: InventoryItem = {
+                    id: uuidv4(),
+                    name: orderItem.nameSnapshot,
+                    unit: orderItem.unitSnapshot,
+                    quantity: orderItem.quantity,
+                    lowStockThreshold: 5, // Default threshold
+                    ownerId: orderToApprove.ownerId,
+                };
+                updatedInventory.push(newInventoryItem);
+                notificationsForInventory.push(`- ${orderItem.nameSnapshot}: +${orderItem.quantity} (mục mới)`);
+            }
+        });
+        
+        if (notificationsForInventory.length > 0) {
+            addNotification({
+                message: `Tồn kho đã được tự động cập nhật từ ĐĐNVL ${orderId}:\n${notificationsForInventory.join('\n')}`,
+                type: 'info',
+                showToast: true,
+                userId: null, 
+                userRole: approvedBy
+            });
+        }
+        return updatedInventory;
+    });
+    // --- END: Inventory Auto-update Logic ---
+
     setAllMaterialOrdersData(prev => prev.map(o => {
         if (o.id === orderId) {
             addNotification({ message: `Đơn đặt NVL ${orderId} đã được duyệt.`, type: 'success', showToast: true });
@@ -63,7 +121,7 @@ export const useMaterialManagement = ({
         }
         return o;
     }));
-  }, [setAllMaterialOrdersData, addNotification]);
+  }, [allMaterialOrdersData, setAllInventoryData, setAllMaterialOrdersData, addNotification]);
 
   const rejectMaterialOrder = useCallback((orderId: string, rejectedBy: UserRole, reason: string) => {
     setAllMaterialOrdersData(prev => prev.map(o => {

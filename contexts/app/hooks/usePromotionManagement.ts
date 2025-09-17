@@ -1,7 +1,8 @@
 
+
 import { useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Promotion, User, UserRole } from '../../../types';
+import { Promotion, User, UserRole, ManagerReport } from '../../../types';
 
 type Props = {
   currentUser: User | null;
@@ -164,7 +165,7 @@ export const usePromotionManagement = ({
     }
   }, [currentUser, setPromotionsData, addNotification, promotionsData]);
 
-  const addPromotion = useCallback((promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId' | 'status' | 'createdBy' | 'approvedBy' | 'approvedAt' | 'rejectionReason'> & { isSystemWide?: boolean, isActive?: boolean }) => {
+  const addPromotion = useCallback((promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId' | 'status' | 'createdBy' | 'approvedBy' | 'approvedAt' | 'rejectionReason' | 'managerReports'> & { isSystemWide?: boolean, isActive?: boolean }) => {
     if (!currentUser) {
       addNotification({ message: "Lỗi: Không thể xác định người dùng.", type: 'error', showToast: true });
       return;
@@ -332,6 +333,57 @@ export const usePromotionManagement = ({
     }));
   }, [currentUser, setPromotionsData, addNotification, usersData]);
 
+  const addManagerReport = useCallback((promotionId: string, reason: string) => {
+    if (!currentUser || currentUser.role !== UserRole.MANAGER) {
+      addNotification({ message: "Chỉ quản lý mới có thể gửi báo cáo.", type: 'error', showToast: true });
+      return;
+    }
+    const promotion = promotionsData.find(p => p.id === promotionId);
+    if (!promotion || !promotion.ownerId) return;
+
+    const newReport: ManagerReport = {
+      id: uuidv4(),
+      reportedBy: currentUser.id,
+      reason,
+      timestamp: new Date(),
+      status: 'pending',
+    };
+
+    setPromotionsData(prev => prev.map(p => {
+      if (p.id === promotionId) {
+        return { ...p, managerReports: [...(p.managerReports || []), newReport] };
+      }
+      return p;
+    }));
+
+    addNotification({ message: 'Đã gửi báo cáo cho chủ cửa hàng.', type: 'success', showToast: true });
+    // Notify the owner
+    addNotification({
+      message: `Quản lý "${currentUser.name}" đã gửi báo cáo về KM "${promotion.name}".`,
+      type: 'warning',
+      userId: promotion.ownerId,
+      showToast: true,
+    });
+  }, [currentUser, promotionsData, setPromotionsData, addNotification]);
+
+  const resolveManagerReport = useCallback((promotionId: string, reportId: string) => {
+    if (!currentUser || (currentUser.role !== UserRole.OWNER && currentUser.role !== UserRole.CHAIRMAN)) {
+      addNotification({ message: "Bạn không có quyền xử lý báo cáo này.", type: 'error', showToast: true });
+      return;
+    }
+
+    setPromotionsData(prev => prev.map(p => {
+      if (p.id === promotionId) {
+        const updatedReports = p.managerReports?.map(r => 
+          r.id === reportId ? { ...r, status: 'resolved' as const } : r
+        );
+        return { ...p, managerReports: updatedReports };
+      }
+      return p;
+    }));
+    addNotification({ message: 'Đã đánh dấu báo cáo là đã xử lý.', type: 'info', showToast: true });
+  }, [currentUser, setPromotionsData, addNotification]);
+
 
   return {
     addPromotion,
@@ -347,5 +399,7 @@ export const usePromotionManagement = ({
     acknowledgeOptOutRequest,
     approvePromotion,
     rejectPromotion,
+    addManagerReport,
+    resolveManagerReport,
   };
 };

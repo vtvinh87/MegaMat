@@ -2,6 +2,8 @@
 
 
 
+
+
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
@@ -21,6 +23,7 @@ import DeletedOrdersHistoryPage from './pages/admin/DeletedOrdersHistoryPage';
 import OrderPrintPreviewPage from './pages/admin/OrderPrintPreviewPage';
 import MaterialOrderManagementPage from './pages/admin/MaterialOrderManagementPage';
 import MaterialOrderDetailPage from './pages/admin/MaterialOrderDetailPage';
+import MaterialDefinitionManagementPage from './pages/admin/MaterialDefinitionManagementPage'; // New Import
 import KpiReportPage from './pages/admin/KpiReportPage';
 import LoginPage from './pages/auth/LoginPage'; 
 import UserManagementPage from './pages/admin/UserManagementPage'; // Import UserManagementPage
@@ -100,11 +103,12 @@ const App: React.FC = () => {
                 <Route path="/admin/users" element={<Navigate to="/admin/dashboard" replace />} />
               )}
               
-              {/* Store Settings & Wash Methods: Accessible to Owner, Manager */}
+              {/* Store Settings, Wash Methods & Material Definitions: Accessible to Owner, Manager */}
               {isOwnerOrManager && (
                    <>
                      <Route path="/admin/settings" element={<StoreSettingsPage />} />
                      <Route path="/admin/wash-methods" element={<WashMethodManagementPage />} />
+                     <Route path="/admin/material-definitions" element={<MaterialDefinitionManagementPage />} />
                    </>
               )}
 

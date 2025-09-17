@@ -1,5 +1,6 @@
 
 
+
 import React, { createContext, useState, useCallback, useEffect } from 'react';
 import { AppData, Notification, Theme, User, UserRole } from '../types';
 import { useAppState } from './app/state';
@@ -132,6 +133,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setMaterialItemDefinitionsData: appState.setMaterialItemDefinitionsData,
       allMaterialOrdersData: appState.allMaterialOrdersData,
       setAllMaterialOrdersData: appState.setAllMaterialOrdersData,
+      allInventoryData: appState.allInventoryData,
+      setAllInventoryData: appState.setAllInventoryData,
       addNotification: notificationLogic.addNotification,
   });
 

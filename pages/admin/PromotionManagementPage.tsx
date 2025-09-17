@@ -55,13 +55,15 @@ const PromotionCard: React.FC<{
   onRespondToOptOut: (promoId: string, ownerId: string, response: 'approved' | 'rejected', reason?: string) => void;
   onRequestCancellation: (id: string, reason: string) => void;
   onRespondToCancellation: (id: string) => void;
-  onToggleStatus: (promotion: Promotion) => void; // New prop for toggling active/inactive
-  onReport: (promotion: Promotion) => void; // New prop for manager reporting
-}> = ({ promotion, orders, users, currentUser, onEdit, onDelete, onApprove, onReject, onRequestOptOut, onRespondToOptOut, onRequestCancellation, onRespondToCancellation, onToggleStatus, onReport }) => {
+  onToggleStatus: (promotion: Promotion) => void;
+  onReport: (promotion: Promotion) => void;
+  onResolveReport: (promotionId: string, reportId: string) => void;
+}> = ({ promotion, orders, users, currentUser, onEdit, onDelete, onApprove, onReject, onRequestOptOut, onRespondToOptOut, onRequestCancellation, onRespondToCancellation, onToggleStatus, onReport, onResolveReport }) => {
     
     const [reasonModal, setReasonModal] = useState<'optOut' | 'cancelRequest' | 'rejectOptOut' | 'rejectPromotion' | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
     const [currentOwnerToReject, setCurrentOwnerToReject] = useState<string | null>(null);
+    const [isReportDetailModalOpen, setIsReportDetailModalOpen] = useState(false);
 
     const isChairman = currentUser.role === UserRole.CHAIRMAN;
     const isOwner = currentUser.role === UserRole.OWNER;
@@ -69,6 +71,8 @@ const PromotionCard: React.FC<{
     const isMyStorePromo = promotion.ownerId === currentUser.id;
 
     const ownerName = useMemo(() => users.find(u => u.id === promotion.ownerId)?.name || 'Không rõ', [users, promotion.ownerId]);
+    
+    const pendingReports = useMemo(() => promotion.managerReports?.filter(r => r.status === 'pending') || [], [promotion.managerReports]);
 
     // Status for Owners viewing a system-wide promo
     const myOptOutRequest = useMemo(() => {
@@ -164,7 +168,7 @@ const PromotionCard: React.FC<{
                         <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>
                     </>;
                 }
-                if (isManager) {
+                if (isManager && promotion.status === 'active') {
                      return <Button variant="secondary" size="sm" onClick={() => onReport(promotion)} leftIcon={<FlagIcon size={14} />}>Báo cáo</Button>;
                 }
                 if (isChairman && !promotion.isSystemWide) {
@@ -197,13 +201,24 @@ const PromotionCard: React.FC<{
     return (
         <>
             <Card className="flex flex-col h-full relative">
+                {isOwner && pendingReports.length > 0 && (
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="absolute top-2 left-2 p-1 text-amber-500 hover:bg-amber-100 z-10" 
+                        title={`${pendingReports.length} báo cáo đang chờ`} 
+                        onClick={() => setIsReportDetailModalOpen(true)}
+                    >
+                        <ShieldAlert size={20} />
+                    </Button>
+                )}
                 <span className={`absolute top-2 right-2 px-2 py-0.5 text-xs rounded-full ${promotion.isSystemWide ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
                     {promotion.isSystemWide ? "Toàn Chuỗi" : `Cửa hàng: ${ownerName}`}
                 </span>
                 
                 <div className="flex justify-between items-start pb-2">
                     <div>
-                        <h3 className="text-lg font-bold text-text-heading pr-20">{promotion.name}</h3>
+                        <h3 className={`text-lg font-bold text-text-heading pr-20 ${isOwner && pendingReports.length > 0 ? 'pl-8' : ''}`}>{promotion.name}</h3>
                         <p className="font-mono text-sm text-brand-primary bg-blue-500/10 px-2 py-0.5 rounded-md inline-block">{promotion.code}</p>
                     </div>
                 </div>
@@ -243,6 +258,40 @@ const PromotionCard: React.FC<{
                     <div className="flex-shrink-0 max-w-[50%] sm:max-w-[60%]">{renderStatusBadge()}</div>
                 </div>
             </Card>
+
+            {isReportDetailModalOpen && isOwner && (
+                <Modal
+                    isOpen={isReportDetailModalOpen}
+                    onClose={() => setIsReportDetailModalOpen(false)}
+                    title={`Báo cáo từ Quản lý cho "${promotion.name}"`}
+                    size="lg"
+                >
+                    <div className="space-y-4 max-h-80 overflow-y-auto">
+                        {pendingReports.length > 0 ? pendingReports.map(report => (
+                            <div key={report.id} className="p-3 bg-bg-subtle rounded-md border border-border-base">
+                                <p className="text-sm">
+                                    <strong>Người báo cáo:</strong> {users.find(u => u.id === report.reportedBy)?.name || 'Không rõ'}
+                                </p>
+                                <p className="text-xs text-text-muted">
+                                    {new Date(report.timestamp).toLocaleString('vi-VN')}
+                                </p>
+                                <p className="mt-2 italic text-text-body">"{report.reason}"</p>
+                                <div className="text-right mt-2">
+                                    <Button size="sm" onClick={() => {
+                                        onResolveReport(promotion.id, report.id);
+                                        // If this is the last pending report, close the modal
+                                        if (pendingReports.length === 1) {
+                                            setIsReportDetailModalOpen(false);
+                                        }
+                                    }}>
+                                        Đánh dấu đã xử lý
+                                    </Button>
+                                </div>
+                            </div>
+                        )) : <p className="text-text-muted">Không còn báo cáo nào đang chờ.</p>}
+                    </div>
+                </Modal>
+            )}
 
             <ReasonModal
                 isOpen={reasonModal === 'optOut'}
@@ -303,7 +352,7 @@ const getVietnameseEvents = (month: number): string => { // month is 0-indexed
 };
 
 const PromotionManagementPage: React.FC = () => {
-  const { promotions, addPromotion, updatePromotion, deletePromotion, orders, users, requestPromotionOptOut, respondToOptOutRequest, requestPromotionCancellation, respondToCancellationRequest, addNotification, services, washMethods, approvePromotion, rejectPromotion } = useData();
+  const { promotions, addPromotion, updatePromotion, deletePromotion, orders, users, requestPromotionOptOut, respondToOptOutRequest, requestPromotionCancellation, respondToCancellationRequest, addNotification, services, washMethods, approvePromotion, rejectPromotion, addManagerReport, resolveManagerReport } = useData();
   const { currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -747,15 +796,8 @@ const PromotionManagementPage: React.FC = () => {
   };
   
   const handleSendReport = (reason: string) => {
-    if (!reportingPromotion || !currentUser || !currentUser.managedBy) return;
-    
-    addNotification({
-        message: `Quản lý "${currentUser.name}" đã báo cáo vấn đề với KM "${reportingPromotion.name}": "${reason}"`,
-        type: 'warning',
-        userId: currentUser.managedBy, // Target the owner
-        showToast: true,
-    });
-    addNotification({message: `Đã gửi báo cáo cho chủ tiệm.`, type: 'success', showToast: true});
+    if (!reportingPromotion || !currentUser) return;
+    addManagerReport(reportingPromotion.id, reason);
     setIsReportModalOpen(false);
     setReportingPromotion(null);
   };
@@ -832,6 +874,7 @@ const PromotionManagementPage: React.FC = () => {
                         onRespondToCancellation={respondToCancellationRequest.bind(null, p.id, 'approved')}
                         onToggleStatus={handleToggleStatus}
                         onReport={handleOpenReportModal}
+                        onResolveReport={resolveManagerReport}
                     />
                 ))}
             </div>
@@ -842,7 +885,7 @@ const PromotionManagementPage: React.FC = () => {
       
       {isModalOpen && currentPromotion && canManage && (
         <Modal isOpen={isModalOpen} onClose={closeModal} title={modalMode === 'add' ? 'Tạo Khuyến mãi' : 'Sửa Khuyến mãi'} size="xl">
-          <form onSubmit={handleSave} className="space-y-4 pt-2">
+          <form onSubmit={handleSave} noValidate className="space-y-4 pt-2">
             {formError && <p className="text-sm text-status-danger flex items-center"><AlertTriangle size={16} className="mr-1.5"/>{formError}</p>}
             
             {isChairman && modalMode === 'add' && (

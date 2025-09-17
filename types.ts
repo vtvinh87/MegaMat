@@ -1,6 +1,7 @@
 
 
 
+
 export interface WashMethodDefinition {
   id: string;
   name: string;
@@ -367,7 +368,16 @@ export interface OrderDetailsFromAI {
 }
 // --- End of AI Order Details Structure ---
 
+
 // --- Promotion Interface ---
+export interface ManagerReport {
+  id: string;
+  reportedBy: string; // Manager's User ID
+  reason: string;
+  timestamp: Date;
+  status: 'pending' | 'resolved';
+}
+
 export interface Promotion {
   id: string;
   name: string;
@@ -414,6 +424,9 @@ export interface Promotion {
     status: 'pending' | 'approved'; // Store owner must approve
     respondedAt?: Date;
   };
+  
+  // For any promotion: Managers can report issues
+  managerReports?: ManagerReport[];
 }
 // --- End of Promotion Interface ---
 
@@ -507,7 +520,7 @@ export interface AppContextType extends AppData {
   deleteStoreAndOwner: (ownerId: string, reason: string) => void;
 
   // Promotion Management
-  addPromotion: (promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId' | 'status' | 'createdBy' | 'approvedBy' | 'approvedAt' | 'rejectionReason'> & { isSystemWide?: boolean, isActive?: boolean }) => void;
+  addPromotion: (promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId' | 'status' | 'createdBy' | 'approvedBy' | 'approvedAt' | 'rejectionReason' | 'managerReports'> & { isSystemWide?: boolean, isActive?: boolean }) => void;
   updatePromotion: (promotionData: Promotion) => void;
   deletePromotion: (promotionId: string) => void;
   approvePromotion: (promotionId: string) => void;
@@ -520,6 +533,8 @@ export interface AppContextType extends AppData {
   acknowledgeSystemPromo: (promotionId: string) => void;
   acknowledgeCancelRequest: (promotionId: string) => void;
   acknowledgeOptOutRequest: (promotionId: string, storeOwnerId: string) => void;
+  addManagerReport: (promotionId: string, reason: string) => void;
+  resolveManagerReport: (promotionId: string, reportId: string) => void;
 
   // Wash Method Management
   addWashMethod: (methodData: Omit<WashMethodDefinition, 'id' | 'ownerId'>) => void;

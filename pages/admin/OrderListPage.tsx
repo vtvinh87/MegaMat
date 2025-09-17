@@ -98,6 +98,7 @@ const OrderListPage: React.FC = () => {
 
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [reasonModalTitle, setReasonModalTitle] = useState('Xác nhận xóa đơn hàng'); // New state for modal title
 
   // State for QR Scanning
   const [qrScanInput, setQrScanInput] = useState('');
@@ -457,8 +458,9 @@ const OrderListPage: React.FC = () => {
         .map(s => ({ value: s, label: s}))
   ];
 
-  const handleOpenDeleteModal = (order: Order) => {
+  const handleOpenDeleteModal = (order: Order, title: string = 'Xác nhận xóa đơn hàng') => {
     setOrderToDelete(order);
+    setReasonModalTitle(title);
     setIsReasonModalOpen(true);
   };
 
@@ -497,9 +499,18 @@ const OrderListPage: React.FC = () => {
                             <Link to={`/admin/orders/${order.id}`} className="font-semibold text-text-link hover:underline">{order.id}</Link>
                             <p className="text-xs text-text-muted">{order.customer.name} - {order.customer.phone}</p>
                         </div>
-                        <Button size="sm" onClick={() => navigate(`/admin/orders/edit/${order.id}`)}>
-                            Xác nhận / Sửa
-                        </Button>
+                        <div className="flex items-center space-x-2">
+                            <Button 
+                                variant="danger" 
+                                size="sm" 
+                                onClick={() => handleOpenDeleteModal(order, 'Xác nhận hủy đơn hàng')}
+                                >
+                                Hủy
+                            </Button>
+                            <Button size="sm" onClick={() => navigate(`/admin/orders/edit/${order.id}`)}>
+                                Xác nhận / Sửa
+                            </Button>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -643,7 +654,7 @@ const OrderListPage: React.FC = () => {
         isOpen={isReasonModalOpen}
         onClose={() => { setIsReasonModalOpen(false); setOrderToDelete(null); }}
         onConfirm={handleConfirmDelete}
-        title="Xác nhận xóa đơn hàng"
+        title={reasonModalTitle}
         orderId={orderToDelete?.id}
       />
       <PickupLocationModal
