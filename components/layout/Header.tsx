@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { UserRole } from '../../types';
 import { APP_NAME } from '../../constants'; 
-import { HomeIcon, PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, SettingsIcon, BellIcon, MenuIcon, XIcon, SparklesIcon, TrendingUpIcon, LogOutIcon, LogInIcon, UserCircleIcon, UserCogIcon, BuildingIcon, FileTextIcon, MoonIcon, SunIcon, TagIcon, LayoutDashboard, DropletsIcon, ChevronDownIcon, FolderKanbanIcon, BookUser } from 'lucide-react';
+import { HomeIcon, PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, SettingsIcon, BellIcon, MenuIcon, XIcon, SparklesIcon, TrendingUpIcon, LogOutIcon, LogInIcon, UserCircleIcon, UserCogIcon, BuildingIcon, FileTextIcon, MoonIcon, SunIcon, TagIcon, LayoutDashboard, DropletsIcon, ChevronDownIcon, FolderKanbanIcon, BookUser, ClipboardListIcon } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 // NavItem type definition
@@ -40,6 +40,7 @@ export const Header: React.FC = () => {
     navItems = [
       { to: "/admin/dashboard", label: "Tổng quan Chuỗi", icon: <BuildingIcon size={20}/> },
       { to: "/admin/stores", label: "Quản lý Cửa hàng", icon: <HomeIcon size={20}/> },
+      { to: "/admin/store-comparison", label: "So sánh Cửa hàng", icon: <ClipboardListIcon size={20}/> },
       { to: "/admin/promotions", label: "Quản lý Khuyến mãi", icon: <TagIcon size={20}/> },
       { to: "/admin/users", label: "Quản lý Người dùng", icon: <UserCogIcon size={20}/> },
       { to: "/admin/reports", label: "Báo cáo TC Toàn Chuỗi", icon: <BarChart2Icon size={20}/> },

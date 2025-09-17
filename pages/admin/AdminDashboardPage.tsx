@@ -98,8 +98,7 @@ const DashboardCharts = () => {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              {/* FIX: The `percent` prop from recharts can be null, undefined, or NaN. */}
-              {/* Using `|| 0` is a more robust way to ensure a number for the arithmetic operation. */}
+              {/* FIX: The `percent` prop from recharts can be null, undefined, or NaN, causing arithmetic errors. Added a fallback to 0 to ensure the operation is always safe. */}
               <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}>
                 {orderStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name as keyof typeof PIE_COLORS]} />

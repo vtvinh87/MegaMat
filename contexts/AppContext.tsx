@@ -52,14 +52,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []); 
 
   // --- Session Logic ---
-  const setCurrentUser = (user: User | null) => {
+  // FIX: Wrap `setCurrentUser` in `useCallback` to ensure it has a stable identity across re-renders.
+  // This is necessary because it's used in the dependency array of other `useCallback` hooks like `login`.
+  const setCurrentUser = useCallback((user: User | null) => {
     setCurrentUserInternal(user);
     if (user) {
       saveDataToLocalStorage(CURRENT_USER_KEY, user);
     } else {
       localStorage.removeItem(CURRENT_USER_KEY);
     }
-  };
+  }, []);
 
   const setTheme = useCallback((newTheme: Theme) => {
     setThemeInternal(newTheme);
@@ -292,7 +294,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     notificationLogic.addNotification({ message: 'Tên đăng nhập hoặc mật khẩu không đúng.', type: 'error', showToast: true });
     return null;
-  }, [appState.usersData, notificationLogic]);
+  }, [appState.usersData, notificationLogic, setCurrentUser]);
 
   const logout = useCallback(() => {
     const loggingOutUser = currentUserInternal;
@@ -301,7 +303,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (loggingOutUser) {
         notificationLogic.addNotification({ message: `${loggingOutUser.name || 'Bạn'} đã đăng xuất.`, type: 'info', userId: loggingOutUser.id, userRole: loggingOutUser.role, showToast: true });
     }
-  }, [currentUserInternal, notificationLogic]);
+  }, [currentUserInternal, notificationLogic, setCurrentUser]);
   
   // --- Assemble final context values ---
   const authContextValue: AuthContextType = {
