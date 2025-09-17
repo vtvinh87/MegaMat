@@ -6,7 +6,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { PlusCircleIcon, EditIcon, SearchIcon, AlertTriangleIcon, Archive, Hash, CheckSquare, Sliders, Tag, CameraIcon, HistoryIcon, XCircleIcon, CheckIcon, XIcon, UserCheck, InboxIcon, ArrowRight, ClockIcon, MessageSquare, UserIcon, CalendarIcon } from 'lucide-react';
+import { EditIcon, SearchIcon, AlertTriangleIcon, Archive, Hash, CheckSquare, Sliders, Tag, CameraIcon, HistoryIcon, XCircleIcon, CheckIcon, XIcon, UserCheck, InboxIcon, ArrowRight, ClockIcon, MessageSquare, UserIcon, CalendarIcon } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import { Spinner } from '../../components/ui/Spinner';
@@ -23,7 +23,6 @@ const fileToBase64 = (file: File): Promise<string> => {
 const InventoryManagementPage: React.FC = () => {
   const { 
     inventory, 
-    addInventoryItem, 
     requestInventoryAdjustment, 
     approveInventoryAdjustment,
     rejectInventoryAdjustment,
@@ -39,7 +38,6 @@ const InventoryManagementPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentItem, setCurrentItem] = useState<Partial<InventoryItem> & { requestedQuantity?: number } | null>(null);
-  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [editReason, setEditReason] = useState('');
   
   const [isScanning, setIsScanning] = useState(false);
@@ -76,13 +74,8 @@ const InventoryManagementPage: React.FC = () => {
     ).sort((a,b) => a.name.localeCompare(b.name));
   }, [inventory, searchTerm]);
 
-  const openModal = (mode: 'add' | 'edit', item: Partial<InventoryItem> | null = null) => {
-    setModalMode(mode);
-    if (mode === 'add') {
-      setCurrentItem({ name: '', quantity: 0, unit: '', lowStockThreshold: 5 });
-    } else if (item) {
-      setCurrentItem({ ...item, requestedQuantity: item.quantity });
-    }
+  const openEditModal = (item: InventoryItem) => {
+    setCurrentItem({ ...item, requestedQuantity: item.quantity });
     setEditReason('');
     setIsModalOpen(true);
     setScanError(null);
@@ -95,30 +88,17 @@ const InventoryManagementPage: React.FC = () => {
 
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
-    if (!currentItem || !currentItem.name?.trim() || !currentItem.unit?.trim() || currentItem.lowStockThreshold === undefined) {
-      alert('Tên, đơn vị tính và ngưỡng báo tồn là bắt buộc.');
+    if (!currentItem || !currentItem.id) return;
+    
+    if (!editReason.trim()) {
+      alert('Lý do yêu cầu là bắt buộc.');
       return;
     }
-    
-    if (modalMode === 'add') {
-      const newItemPayload: Omit<InventoryItem, 'id' | 'ownerId'> = {
-        name: currentItem.name!,
-        quantity: Number(currentItem.requestedQuantity) || 0,
-        unit: currentItem.unit!,
-        lowStockThreshold: Number(currentItem.lowStockThreshold) || 0,
-      };
-      addInventoryItem(newItemPayload);
-    } else if (currentItem.id) {
-       if (!editReason.trim()) {
-        alert('Lý do yêu cầu là bắt buộc.');
-        return;
-      }
-      if (currentItem.requestedQuantity === undefined) {
-        alert('Số lượng yêu cầu không hợp lệ.');
-        return;
-      }
-      requestInventoryAdjustment(currentItem.id, Number(currentItem.requestedQuantity), editReason);
+    if (currentItem.requestedQuantity === undefined) {
+      alert('Số lượng yêu cầu không hợp lệ.');
+      return;
     }
+    requestInventoryAdjustment(currentItem.id, Number(currentItem.requestedQuantity), editReason);
     closeModal();
   };
   
@@ -217,7 +197,6 @@ const InventoryManagementPage: React.FC = () => {
 
       <Card 
         title="Quản lý Tồn kho"
-        actions={<Button onClick={() => openModal('add')} leftIcon={<PlusCircleIcon size={18} />}>Thêm Vật tư</Button>}
       >
         <Input 
           placeholder="Tìm kiếm vật tư..."
@@ -308,7 +287,7 @@ const InventoryManagementPage: React.FC = () => {
                         <td className="px-5 py-4 whitespace-nowrap text-sm">{statusElement}</td>
                         <td className="px-5 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex items-center space-x-1">
-                                <Button variant="ghost" size="sm" onClick={() => openModal('edit', item)} title={pendingRequest ? "Vật tư này có một yêu cầu điều chỉnh đang chờ duyệt." : "Sửa"} className="text-text-link hover:text-brand-primary p-1.5" disabled={!!pendingRequest}>
+                                <Button variant="ghost" size="sm" onClick={() => openEditModal(item)} title={pendingRequest ? "Vật tư này có một yêu cầu điều chỉnh đang chờ duyệt." : "Yêu cầu điều chỉnh"} className="text-text-link hover:text-brand-primary p-1.5" disabled={!!pendingRequest}>
                                     <EditIcon size={18}/>
                                 </Button>
                                 <Button variant="ghost" size="sm" onClick={() => setHistoryItem(item)} title="Xem lịch sử thay đổi" className="text-text-muted hover:text-brand-primary p-1.5" disabled={!item.history || item.history.length === 0}>
@@ -329,17 +308,17 @@ const InventoryManagementPage: React.FC = () => {
         <Modal
           isOpen={isModalOpen}
           onClose={closeModal}
-          title={modalMode === 'add' ? 'Thêm Vật tư mới' : 'Yêu cầu Điều chỉnh Vật tư'}
+          title="Yêu cầu Điều chỉnh Vật tư"
           size="lg"
         >
           <form onSubmit={handleSave}>
             <div className="space-y-4 pt-2">
-              <Input label="Tên vật tư*" name="name" value={currentItem.name || ''} onChange={handleInputChange} required disabled={modalMode === 'edit'}/>
+              <Input label="Tên vật tư*" name="name" value={currentItem.name || ''} onChange={handleInputChange} required disabled/>
               
               <div>
                 <div className="flex justify-between items-end">
                    <Input 
-                    label={modalMode === 'add' ? 'Số lượng ban đầu*' : 'Số lượng mới*'}
+                    label="Số lượng mới*"
                     name="requestedQuantity" 
                     type="number" 
                     min="0" 
@@ -367,28 +346,26 @@ const InventoryManagementPage: React.FC = () => {
                     accept="image/*"
                   />
                 </div>
-                 {modalMode === 'edit' && <p className="text-xs text-text-muted mt-1">Số lượng hiện tại: {currentItem.quantity}</p>}
+                 <p className="text-xs text-text-muted mt-1">Số lượng hiện tại: {currentItem.quantity}</p>
                 {scanError && <p className="text-xs text-status-danger mt-1">{scanError}</p>}
               </div>
 
-              <Input label="Đơn vị tính*" name="unit" value={currentItem.unit || ''} onChange={handleInputChange} required disabled={modalMode === 'edit'} />
+              <Input label="Đơn vị tính*" name="unit" value={currentItem.unit || ''} onChange={handleInputChange} required disabled />
               <Input label="Ngưỡng báo tồn*" name="lowStockThreshold" type="number" min="0" value={currentItem.lowStockThreshold === undefined ? '' : currentItem.lowStockThreshold} onChange={handleInputChange} required />
               
-              {modalMode === 'edit' && (
-                <Input
-                  isTextArea
-                  rows={3}
-                  label="Lý do yêu cầu thay đổi*"
-                  value={editReason}
-                  onChange={e => setEditReason(e.target.value)}
-                  placeholder="VD: Kiểm kho thực tế, nhập bù số lượng hỏng..."
-                  required
-                />
-              )}
+              <Input
+                isTextArea
+                rows={3}
+                label="Lý do yêu cầu thay đổi*"
+                value={editReason}
+                onChange={e => setEditReason(e.target.value)}
+                placeholder="VD: Kiểm kho thực tế, nhập bù số lượng hỏng..."
+                required
+              />
             </div>
             <div className="mt-6 flex justify-end space-x-3 border-t border-border-base pt-4">
               <Button type="button" variant="secondary" onClick={closeModal}>Hủy</Button>
-              <Button type="submit" variant="primary">{modalMode === 'add' ? 'Thêm mới' : 'Gửi Yêu cầu'}</Button>
+              <Button type="submit" variant="primary">Gửi Yêu cầu</Button>
             </div>
           </form>
         </Modal>
