@@ -10,7 +10,7 @@ import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Spinner } from '../../components/ui/Spinner';
-import { PlusCircleIcon, EditIcon, Trash2Icon, SearchIcon, TagIcon, Percent, DollarSign, Calendar, AlertTriangle, CheckCircle, XCircle, BarChart2, TrendingUp, Users, SparklesIcon, Building, ShieldCheck, ShieldAlert, ShieldOff, BanIcon, HelpCircleIcon, Settings2Icon, DropletsIcon, MegaphoneIcon } from 'lucide-react';
+import { PlusCircleIcon, EditIcon, Trash2Icon, SearchIcon, TagIcon, Percent, DollarSign, Calendar, AlertTriangle, CheckCircle, XCircle, BarChart2, TrendingUp, Users, SparklesIcon, Building, ShieldCheck, ShieldAlert, ShieldOff, BanIcon, HelpCircleIcon, Settings2Icon, DropletsIcon, MegaphoneIcon, FlagIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 
@@ -55,7 +55,9 @@ const PromotionCard: React.FC<{
   onRespondToOptOut: (promoId: string, ownerId: string, response: 'approved' | 'rejected', reason?: string) => void;
   onRequestCancellation: (id: string, reason: string) => void;
   onRespondToCancellation: (id: string) => void;
-}> = ({ promotion, orders, users, currentUser, onEdit, onDelete, onApprove, onReject, onRequestOptOut, onRespondToOptOut, onRequestCancellation, onRespondToCancellation }) => {
+  onToggleStatus: (promotion: Promotion) => void; // New prop for toggling active/inactive
+  onReport: (promotion: Promotion) => void; // New prop for manager reporting
+}> = ({ promotion, orders, users, currentUser, onEdit, onDelete, onApprove, onReject, onRequestOptOut, onRespondToOptOut, onRequestCancellation, onRespondToCancellation, onToggleStatus, onReport }) => {
     
     const [reasonModal, setReasonModal] = useState<'optOut' | 'cancelRequest' | 'rejectOptOut' | 'rejectPromotion' | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
@@ -63,13 +65,9 @@ const PromotionCard: React.FC<{
 
     const isChairman = currentUser.role === UserRole.CHAIRMAN;
     const isOwner = currentUser.role === UserRole.OWNER;
+    const isManager = currentUser.role === UserRole.MANAGER;
     const isMyStorePromo = promotion.ownerId === currentUser.id;
 
-    // Analytics calculation
-    const relatedOrders = useMemo(() => orders.filter(o => o.appliedPromotionId === promotion.id), [orders, promotion.id]);
-    const totalDiscountGiven = useMemo(() => relatedOrders.reduce((sum, o) => sum + (o.promotionDiscountAmount || 0), 0), [relatedOrders]);
-    const revenueGenerated = useMemo(() => relatedOrders.reduce((sum, o) => sum + o.totalAmount, 0), [relatedOrders]);
-    
     const ownerName = useMemo(() => users.find(u => u.id === promotion.ownerId)?.name || 'Không rõ', [users, promotion.ownerId]);
 
     // Status for Owners viewing a system-wide promo
@@ -136,54 +134,62 @@ const PromotionCard: React.FC<{
     };
 
     const renderActionButtons = () => {
-        // ---- Approver Actions ----
-        // An owner can approve a promo from their manager. A chairman can approve any pending promo created by an owner.
-        const isApprover =
-            promotion.status === 'pending' &&
-            promotion.createdBy !== currentUser.id &&
-            (
-                (isOwner && users.find(u => u.id === promotion.createdBy)?.managedBy === currentUser.id) ||
-                (isChairman && users.find(u => u.id === promotion.createdBy)?.role === UserRole.OWNER)
-            );
-    
-        if (isApprover) {
-            return <>
-                <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2 text-blue-500" title="Chỉnh sửa"><EditIcon size={18} /></Button>
-                <Button variant="ghost" size="sm" onClick={() => onApprove(promotion.id)} className="p-2 text-status-success" title="Duyệt"><CheckCircle size={18} /></Button>
-                <Button variant="ghost" size="sm" onClick={() => setReasonModal('rejectPromotion')} className="p-2 text-status-danger" title="Từ chối"><XCircle size={18} /></Button>
-            </>;
-        }
-        
-        // ---- Creator Actions ----
         const isCreator = promotion.createdBy === currentUser.id;
-        if (isCreator) {
-            const canEdit = promotion.status === 'pending';
-            // Allow deleting unless it's active
-            const canDelete = promotion.status !== 'active';
+
+        switch (promotion.status) {
+            case 'pending':
+                const canApprove = (isOwner && users.find(u => u.id === promotion.createdBy)?.managedBy === currentUser.id) || (isChairman && users.find(u => u.id === promotion.createdBy)?.role === UserRole.OWNER);
+                if (canApprove) {
+                    return <>
+                        <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2 text-blue-500" title="Chỉnh sửa"><EditIcon size={18} /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => onApprove(promotion.id)} className="p-2 text-status-success" title="Duyệt"><CheckCircle size={18} /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => setReasonModal('rejectPromotion')} className="p-2 text-status-danger" title="Từ chối"><XCircle size={18} /></Button>
+                    </>;
+                }
+                if (isCreator || (isOwner && isMyStorePromo)) { // Creator or Owner can edit their own pending promos
+                    return <>
+                        <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>
+                    </>;
+                }
+                break;
+
+            case 'active':
+            case 'inactive':
+                if (isOwner && isMyStorePromo) {
+                    const toggleText = promotion.status === 'active' ? 'Tạm dừng' : 'Kích hoạt';
+                    return <>
+                        <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => onToggleStatus(promotion)} className="p-2 text-amber-600" title={toggleText}><ShieldOff size={18} /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>
+                    </>;
+                }
+                if (isManager) {
+                     return <Button variant="secondary" size="sm" onClick={() => onReport(promotion)} leftIcon={<FlagIcon size={14} />}>Báo cáo</Button>;
+                }
+                if (isChairman && !promotion.isSystemWide) {
+                     return <Button variant="ghost" size="sm" onClick={() => setReasonModal('cancelRequest')} className="p-2 text-amber-600" title="Yêu cầu hủy"><BanIcon size={18} /></Button>;
+                }
+                break;
             
-            return <>
-                {canEdit && <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>}
-                {canDelete && <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>}
-            </>;
+            case 'rejected':
+                if (isCreator) {
+                     return <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>;
+                }
+                break;
         }
-    
-        // ---- Chairman Actions on Store Promos ----
-        if (isChairman && !promotion.isSystemWide && promotion.status !== 'pending') {
-            return <Button variant="ghost" size="sm" onClick={() => setReasonModal('cancelRequest')} className="p-2 text-amber-600" title="Yêu cầu hủy"><BanIcon size={18} /></Button>;
-        }
-    
-        // ---- Owner Actions on System Promos ----
+
+        // Default case for Owner on system-wide promos
         if (isOwner && promotion.isSystemWide) {
             if (!myOptOutRequest || myOptOutRequest.status === 'rejected') {
                 return <Button variant="secondary" size="sm" onClick={() => setReasonModal('optOut')}>Từ chối tham gia</Button>;
             }
         }
-    
-        // ---- Owner Actions on Cancellation Requests ----
+        // Default case for Owner on cancellation requests
         if (isOwner && isMyStorePromo && myCancellationRequest?.status === 'pending') {
             return <Button variant="danger" size="sm" onClick={() => onRespondToCancellation(promotion.id)}>Chấp thuận Hủy</Button>;
         }
-    
+
         return null;
     };
 
@@ -324,6 +330,11 @@ const PromotionManagementPage: React.FC = () => {
   const [customerInsights, setCustomerInsights] = useState<string>('');
   const [serviceInsights, setServiceInsights] = useState<string>('');
   // --- END: AI Campaign State ---
+
+  // --- START: Manager Report State ---
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportingPromotion, setReportingPromotion] = useState<Promotion | null>(null);
+  // --- END: Manager Report State ---
 
   const isChairman = currentUser?.role === UserRole.CHAIRMAN;
   const isOwner = currentUser?.role === UserRole.OWNER;
@@ -643,8 +654,6 @@ const PromotionManagementPage: React.FC = () => {
     }
     const isSystemWide = isChairman && currentPromotion.isSystemWide;
     
-    const isActive = currentPromotion.status === 'active';
-
     const promotionData = {
       name: currentPromotion.name, code: currentPromotion.code.toUpperCase(), type: currentPromotion.type!,
       discountType: currentPromotion.discountType, discountValue: Number(currentPromotion.discountValue),
@@ -662,9 +671,18 @@ const PromotionManagementPage: React.FC = () => {
     };
     
     if (modalMode === 'add') {
+      const isActive = currentPromotion.status === 'active';
       addPromotion({ ...promotionData, isActive });
     } else if (currentPromotion.id) {
-      updatePromotion({ ...currentPromotion, ...promotionData, status: isActive ? 'active' : 'inactive' } as Promotion);
+        const originalPromotion = promotions.find(p => p.id === currentPromotion.id);
+        
+        let finalStatus = currentPromotion.status; 
+        
+        if (originalPromotion && originalPromotion.status === 'pending' && currentUser?.role === UserRole.MANAGER) {
+            finalStatus = 'pending';
+        }
+        
+        updatePromotion({ ...currentPromotion, ...promotionData, status: finalStatus } as Promotion);
     }
     closeModal();
   };
@@ -722,6 +740,31 @@ const PromotionManagementPage: React.FC = () => {
   };
 
   const handleDelete = (promotionId: string) => { if (window.confirm('Bạn có chắc muốn xóa khuyến mãi này không?')) { deletePromotion(promotionId); } };
+
+  const handleOpenReportModal = (promo: Promotion) => {
+    setReportingPromotion(promo);
+    setIsReportModalOpen(true);
+  };
+  
+  const handleSendReport = (reason: string) => {
+    if (!reportingPromotion || !currentUser || !currentUser.managedBy) return;
+    
+    addNotification({
+        message: `Quản lý "${currentUser.name}" đã báo cáo vấn đề với KM "${reportingPromotion.name}": "${reason}"`,
+        type: 'warning',
+        userId: currentUser.managedBy, // Target the owner
+        showToast: true,
+    });
+    addNotification({message: `Đã gửi báo cáo cho chủ tiệm.`, type: 'success', showToast: true});
+    setIsReportModalOpen(false);
+    setReportingPromotion(null);
+  };
+  
+  const handleToggleStatus = (promo: Promotion) => {
+    if (!currentUser || currentUser.role !== UserRole.OWNER) return;
+    const newStatus = promo.status === 'active' ? 'inactive' : 'active';
+    updatePromotion({ ...promo, status: newStatus });
+  };
 
   const discountTypeOptions = [{ value: 'percentage', label: 'Phần trăm (%)' }, { value: 'fixed_amount', label: 'Số tiền cố định (VNĐ)' }];
   const daysOfWeek = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
@@ -787,6 +830,8 @@ const PromotionManagementPage: React.FC = () => {
                         onRespondToOptOut={respondToOptOutRequest}
                         onRequestCancellation={requestPromotionCancellation}
                         onRespondToCancellation={respondToCancellationRequest.bind(null, p.id, 'approved')}
+                        onToggleStatus={handleToggleStatus}
+                        onReport={handleOpenReportModal}
                     />
                 ))}
             </div>
@@ -895,7 +940,7 @@ const PromotionManagementPage: React.FC = () => {
             </fieldset>
             
             <label className="flex items-center space-x-3 cursor-pointer pt-2">
-                <input type="checkbox" name="isActive" checked={currentPromotion.status === 'active'} onChange={handleInputChange} className="h-5 w-5 rounded border-gray-300 text-brand-primary focus:ring-brand-primary-focus" disabled={currentUser?.role === UserRole.MANAGER}/>
+                <input type="checkbox" name="isActive" checked={currentPromotion.status === 'active'} onChange={handleInputChange} className="h-5 w-5 rounded border-gray-300 text-brand-primary focus:ring-brand-primary-focus" disabled={currentUser?.role === UserRole.MANAGER && modalMode === 'add'}/>
                 <span className="text-text-body font-medium">Kích hoạt khuyến mãi {currentUser?.role === UserRole.MANAGER && <span className="text-xs text-text-muted">(Chủ tiệm sẽ duyệt)</span>}</span>
             </label>
             
@@ -1009,6 +1054,18 @@ const PromotionManagementPage: React.FC = () => {
                 )}
             </div>
         </Modal>
+      )}
+
+      {isReportModalOpen && reportingPromotion && (
+         <ReasonModal
+            isOpen={isReportModalOpen}
+            onClose={() => setIsReportModalOpen(false)}
+            onConfirm={handleSendReport}
+            title={`Báo cáo về KM: ${reportingPromotion.name}`}
+            label="Nội dung báo cáo*"
+            placeholder="VD: Chương trình không hiệu quả, khách hàng phàn nàn về điều kiện..."
+            confirmText="Gửi Báo cáo"
+        />
       )}
     </>
   );

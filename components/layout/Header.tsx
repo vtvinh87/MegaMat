@@ -56,6 +56,7 @@ export const Header: React.FC = () => {
         managementChildren.push({ to: "/admin/promotions", label: "Khuyến mãi", icon: <TagIcon size={20}/> });
     }
     managementChildren.push({ to: "/admin/suppliers", label: "Nhà cung cấp", icon: <ShoppingBagIcon size={20}/> });
+    managementChildren.push({ to: "/admin/material-orders", label: "Đơn đặt NVL", icon: <FileTextIcon size={20}/> });
     
     const reportsChildren: NavItem[] = [
       { to: "/admin/inventory", label: "Tồn kho", icon: <BarChart2Icon size={20}/> },
@@ -316,7 +317,7 @@ const DropdownNavLink: React.FC<{ item: NavItem; currentPath: string }> = ({ ite
           <ChevronDownIcon size={16} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
         </button>
         {isOpen && (
-          <div className="absolute top-full left-0 mt-2 w-56 rounded-md shadow-lg bg-bg-surface ring-1 ring-black ring-opacity-5 z-50 animate-fadeIn">
+          <div className="absolute top-full left-0 w-56 rounded-md shadow-lg bg-bg-surface ring-1 ring-black ring-opacity-5 z-50 animate-fadeIn pt-2">
             <div className="py-1" role="menu" aria-orientation="vertical">
               {item.children?.map(child => (
                 <NavLink

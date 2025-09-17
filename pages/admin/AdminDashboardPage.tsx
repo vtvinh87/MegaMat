@@ -97,8 +97,9 @@ const DashboardCharts = () => {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
+              {/* FIX: The 'percent' property from recharts can be undefined, causing an arithmetic error when multiplying. Coalescing to 0 ensures the operation is always valid. */}
               {/* FIX: The 'percent' property from recharts can be undefined. Coalesce to 0 to prevent arithmetic error. */}
-              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}>
+              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}>
                 {orderStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name as keyof typeof PIE_COLORS]} />
                 ))}
