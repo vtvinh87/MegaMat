@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useData } from '../../../contexts/DataContext';
 // FIX: Replaced deprecated `Customer` type with `User`.
@@ -199,7 +201,8 @@ export const AIAssistantTab: React.FC<AIAssistantTabProps> = ({ loggedInCustomer
 The user is ALREADY LOGGED IN. Their details are:
 - Name: ${loggedInCustomer.name}
 - Phone: ${loggedInCustomer.phone}
-- Address: ${loggedInCustomer.address || 'Not provided'}
+- Address: ${// FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
+loggedInCustomer.addresses?.[0]?.street || 'Not provided'}
 
 **CRITICAL INSTRUCTIONS:**
 - DO NOT ask for their name, phone number, or address again.
@@ -323,8 +326,9 @@ ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."
 
             if (type === "CUSTOMER" && query) {
                 const foundCustomer = customers.find(c => c.phone === query.trim());
+                // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
                 lookupResultText = foundCustomer 
-                    ? `Tôi đã tìm thấy thông tin của bạn: Tên ${foundCustomer.name}, SĐT ${query}${foundCustomer.address ? `, Địa chỉ ${foundCustomer.address}` : ''}. Thông tin này chính xác chứ?`
+                    ? `Tôi đã tìm thấy thông tin của bạn: Tên ${foundCustomer.name}, SĐT ${query}${foundCustomer.addresses?.[0]?.street ? `, Địa chỉ ${foundCustomer.addresses[0].street}` : ''}. Thông tin này chính xác chứ?`
                     : `Tôi chưa tìm thấy thông tin cho SĐT ${query}. Bạn vui lòng cho biết Tên và Địa chỉ để tạo hồ sơ mới nhé?`;
                 aiMessageToDisplay = { id: uuidv4(), sender: 'ai', text: lookupResultText, timestamp: new Date() };
             } else if (type === "ORDER" && query) {
@@ -374,14 +378,17 @@ ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."
                 const existingCustomer = customers.find(c => c.phone === phone);
                 
                 if (existingCustomer) {
-                    customerToPassToModal = { ...existingCustomer, name: orderDetailsAI.customer?.name || existingCustomer.name, address: orderDetailsAI.customer?.address || existingCustomer.address || '' };
+                    // FIX: 'address' from AI needs to be mapped to 'addresses' array
+                    const street = orderDetailsAI.customer?.address || existingCustomer.addresses?.[0]?.street || '';
+                    const addresses = street ? [{ ...(existingCustomer.addresses?.[0] || {id: uuidv4(), label: 'Mặc định', isDefault: true}), street: street }] : existingCustomer.addresses;
+                    customerToPassToModal = { ...existingCustomer, name: orderDetailsAI.customer?.name || existingCustomer.name, addresses };
                 } else if (orderDetailsAI.customer?.name && orderDetailsAI.customer?.phone) {
-                    // FIX: Create a complete temporary User object.
+                    // FIX: Create a complete temporary User object with 'addresses' array
                     customerToPassToModal = { 
                         id: `temp-${uuidv4()}`, 
                         name: orderDetailsAI.customer.name, 
                         phone: orderDetailsAI.customer.phone, 
-                        address: orderDetailsAI.customer.address || '', 
+                        addresses: orderDetailsAI.customer.address ? [{id: `temp-${uuidv4()}`, label: 'Mặc định', street: orderDetailsAI.customer.address, isDefault: true}] : [], 
                         loyaltyPoints: 0,
                         role: UserRole.CUSTOMER,
                         username: orderDetailsAI.customer.phone

@@ -1,5 +1,4 @@
-
-import { UserRole, User, StoreProfile, FixedCostItem, MaterialItemDefinition, VariableCost, VariableCostCategory, Order, ServiceItem, OrderItem, ScanHistoryEntry, InventoryItem, MaterialOrder, Notification, OrderStatus, Promotion, PaymentStatus, PaymentMethod, Supplier, FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreUpdateHistoryEntry, WashMethodDefinition, InventoryAdjustmentRequest } from '../../types';
+import { UserRole, User, StoreProfile, FixedCostItem, MaterialItemDefinition, VariableCost, VariableCostCategory, Order, ServiceItem, OrderItem, ScanHistoryEntry, InventoryItem, MaterialOrder, Notification, OrderStatus, Promotion, PaymentStatus, PaymentMethod, Supplier, FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreUpdateHistoryEntry, WashMethodDefinition, InventoryAdjustmentRequest, Address, LoyaltyHistoryEntry } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { MOCK_SERVICES } from '../../constants';
 import * as LsKeys from './utils';
@@ -27,8 +26,40 @@ export const MOCK_USERS: User[] = [
   { id: 'staff001', name: 'Nhân Viên Ca 1 (Cửa hàng B)', role: UserRole.STAFF, username: 'nhanvien1_b', password: '000000', phone: '0912345678', managedBy: 'manager001' },
   
   // Customers
-  { id: 'cus002', name: 'Trần Thị B', role: UserRole.CUSTOMER, phone: '0908765432', username: '0908765432', password: '123123', address: '456 Đường XYZ, Quận 3, TP.HCM', loyaltyPoints: 120 },
-  { id: 'cus_binhminh', name: 'Bình Minh', role: UserRole.CUSTOMER, phone: '0901234567', username: '0901234567', password: '123123', address: '789 Đường GHI, Quận 5, TP.HCM', loyaltyPoints: 50 },
+  { 
+    id: 'cus002', 
+    name: 'Trần Thị B', 
+    role: UserRole.CUSTOMER, 
+    phone: '0908765432', 
+    username: '0908765432', 
+    password: '123123', 
+    addresses: [
+      { id: uuidv4(), label: 'Nhà riêng', street: '456 Đường XYZ, Quận 3, TP.HCM', isDefault: true },
+      { id: uuidv4(), label: 'Công ty', street: '789 Tòa nhà Bitexco, Quận 1, TP.HCM', isDefault: false },
+    ],
+    dob: new Date('1995-10-20'),
+    loyaltyPoints: 120,
+    loyaltyHistory: [
+      { timestamp: new Date(new Date().setDate(new Date().getDate() - 10)), orderId: 'DH-DUNG001', pointsChange: 50, reason: 'Tích điểm từ đơn hàng DH-DUNG001' },
+      { timestamp: new Date(new Date().setDate(new Date().getDate() - 5)), orderId: 'DH-DUNG003', pointsChange: -20, reason: 'Đổi điểm trừ vào đơn hàng DH-DUNG003' },
+      { timestamp: new Date(new Date().setDate(new Date().getDate() - 2)), orderId: 'DH-DUNG005', pointsChange: 90, reason: 'Tích điểm từ đơn hàng DH-DUNG005' },
+    ]
+  },
+  { 
+    id: 'cus_binhminh', 
+    name: 'Bình Minh', 
+    role: UserRole.CUSTOMER, 
+    phone: '0901234567', 
+    username: '0901234567', 
+    password: '123123', 
+    addresses: [
+        { id: uuidv4(), label: 'Nhà', street: '789 Đường GHI, Quận 5, TP.HCM', isDefault: true }
+    ],
+    loyaltyPoints: 50,
+    loyaltyHistory: [
+      { timestamp: new Date(new Date().setDate(new Date().getDate() - 20)), orderId: 'DH-DUNG002', pointsChange: 50, reason: 'Tích điểm từ đơn hàng DH-DUNG002' }
+    ]
+  },
 ];
 
 const ownerIdDung = 'user_owner_dung';

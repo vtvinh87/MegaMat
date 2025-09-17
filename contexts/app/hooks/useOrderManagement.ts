@@ -1,6 +1,5 @@
-
 import { useCallback } from 'react';
-import { Order, OrderStatus, UserRole, User, StoreProfile, Promotion, InventoryItem, PaymentStatus } from '../../../types';
+import { Order, OrderStatus, UserRole, User, StoreProfile, Promotion, InventoryItem, PaymentStatus, LoyaltyHistoryEntry } from '../../../types';
 
 type Props = {
   currentUser: User | null;
@@ -41,15 +40,22 @@ export const useOrderManagement = ({
       setUsersData(prevUsers => prevUsers.map(u => {
         if (u.id === newOrderWithPayment.customer.id) {
           const newPoints = Math.max(0, (u.loyaltyPoints || 0) - (newOrderWithPayment.loyaltyPointsRedeemed || 0));
-          return { ...u, loyaltyPoints: newPoints };
+          const newHistoryEntry: LoyaltyHistoryEntry = {
+            timestamp: new Date(),
+            orderId: newOrderWithPayment.id,
+            pointsChange: -Math.abs(newOrderWithPayment.loyaltyPointsRedeemed),
+            reason: `Đổi điểm trừ vào đơn hàng ${newOrderWithPayment.id}`
+          };
+          const newHistory = [...(u.loyaltyHistory || []), newHistoryEntry];
+          addNotification({
+            message: `Đã sử dụng ${newOrderWithPayment.loyaltyPointsRedeemed} điểm cho khách hàng ${newOrderWithPayment.customer.name}.`,
+            type: 'info',
+            showToast: false // Avoid spamming toasts
+          });
+          return { ...u, loyaltyPoints: newPoints, loyaltyHistory: newHistory };
         }
         return u;
       }));
-      addNotification({
-        message: `Đã sử dụng ${newOrderWithPayment.loyaltyPointsRedeemed} điểm cho khách hàng ${newOrderWithPayment.customer.name}.`,
-        type: 'info',
-        showToast: false // Avoid spamming toasts
-      });
     }
     
     // Promotion Usage Tracking Logic
@@ -131,12 +137,20 @@ export const useOrderManagement = ({
           setUsersData(prevUsers => prevUsers.map(u => {
             if (u.id === updatedOrder.customer.id) {
               const newPoints = (u.loyaltyPoints || 0) + pointsToAdd;
+              const newHistoryEntry: LoyaltyHistoryEntry = {
+                timestamp: new Date(),
+                orderId: updatedOrder.id,
+                pointsChange: pointsToAdd,
+                reason: `Tích điểm từ đơn hàng ${updatedOrder.id}`
+              };
+              const newHistory = [...(u.loyaltyHistory || []), newHistoryEntry];
               addNotification({
                 message: `Khách hàng ${u.name} đã được cộng ${pointsToAdd} điểm. Tổng điểm: ${newPoints}.`,
                 type: 'info',
-                showToast: true
+                showToast: true,
+                userId: u.id,
               });
-              return { ...u, loyaltyPoints: newPoints };
+              return { ...u, loyaltyPoints: newPoints, loyaltyHistory: newHistory };
             }
             return u;
           }));

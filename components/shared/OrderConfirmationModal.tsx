@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -253,7 +254,10 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
     } else {
       const existingGlobalCustomer = globalUsers.find(gc => gc.phone === customerFromAI.phone);
       if (existingGlobalCustomer) {
-        finalCustomerForOrder = { ...existingGlobalCustomer, name: orderDetailsFromAI.customer?.name || existingGlobalCustomer.name, address: orderDetailsFromAI.customer?.address || existingGlobalCustomer.address || undefined };
+        // FIX: The 'address' property is deprecated. Construct an 'addresses' array from AI response.
+        const street = orderDetailsFromAI.customer?.address || existingGlobalCustomer.addresses?.[0]?.street;
+        const addresses = street ? [{...(existingGlobalCustomer.addresses?.[0] || {id: uuidv4(), label: 'Mặc định', isDefault: true}), street}] : existingGlobalCustomer.addresses;
+        finalCustomerForOrder = { ...existingGlobalCustomer, name: orderDetailsFromAI.customer?.name || existingGlobalCustomer.name, addresses };
       }
     }
 
@@ -336,7 +340,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
             <Card title="Thông tin Khách hàng" icon={<UserIcon size={18}/>} className="bg-bg-subtle">
                 <p><strong>Tên:</strong> {customerFromAI.name}</p>
                 <p><strong>SĐT:</strong> {customerFromAI.phone}</p>
-                {customerFromAI.address && <p><strong>Địa chỉ:</strong> {customerFromAI.address}</p>}
+                {customerFromAI.addresses?.[0]?.street && <p><strong>Địa chỉ:</strong> {customerFromAI.addresses[0].street}</p>}
             </Card>
 
             <Card title="Chi tiết Dịch vụ" icon={<ShoppingCartIcon size={18}/>} className="bg-bg-subtle">

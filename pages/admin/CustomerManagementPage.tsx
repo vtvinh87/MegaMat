@@ -30,7 +30,8 @@ const CustomerManagementPage: React.FC = () => {
 
   const openModal = (mode: 'add' | 'edit', user: Partial<User> | null = null) => {
     setModalMode(mode);
-    setCurrentUser(mode === 'add' ? { name: '', phone: '', address: '', loyaltyPoints: 0, role: UserRole.CUSTOMER, password: '', passwordConfirmation: '' } : { ...user, password: '', passwordConfirmation: '' });
+    const defaultAddress = user?.addresses?.find(a => a.isDefault)?.street || user?.addresses?.[0]?.street || '';
+    setCurrentUser(mode === 'add' ? { name: '', phone: '', addresses: [], loyaltyPoints: 0, role: UserRole.CUSTOMER, password: '', passwordConfirmation: '' } : { ...user, password: '', passwordConfirmation: '' });
     setIsModalOpen(true);
   };
 
@@ -63,7 +64,7 @@ const CustomerManagementPage: React.FC = () => {
         phone: currentUser.phone.trim(),
         username: currentUser.phone.trim(),
         role: UserRole.CUSTOMER,
-        address: currentUser.address?.trim() || undefined,
+        addresses: [],
         loyaltyPoints: 0,
         password: currentUser.password?.trim() || '123123',
       };
@@ -74,7 +75,6 @@ const CustomerManagementPage: React.FC = () => {
             name: currentUser.name.trim(),
             phone: currentUser.phone.trim(),
             username: currentUser.phone.trim(),
-            address: currentUser.address?.trim() || undefined,
             loyaltyPoints: Number(currentUser.loyaltyPoints) || 0,
         };
 
@@ -98,7 +98,7 @@ const CustomerManagementPage: React.FC = () => {
   const tableHeaders = [
     { label: "Tên", icon: <UserIconLucide size={14}/> },
     { label: "SĐT / Tên ĐN", icon: <Phone size={14}/> },
-    { label: "Địa chỉ", icon: <MapPin size={14}/> },
+    { label: "Địa chỉ mặc định", icon: <MapPin size={14}/> },
     { label: "Điểm Tích Lũy", icon: <AwardIcon size={14}/> },
     { label: "Hành động", icon: <Settings size={14}/> }
   ];
@@ -137,11 +137,13 @@ const CustomerManagementPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-bg-surface divide-y divide-border-base">
-                {filteredCustomers.map(customer => (
+                {filteredCustomers.map(customer => {
+                  const defaultAddress = customer.addresses?.find(a => a.isDefault)?.street || customer.addresses?.[0]?.street || '-';
+                  return (
                   <tr key={customer.id} className="hover:bg-bg-surface-hover dark:hover:bg-slate-700/60 transition-colors">
                     <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-text-heading">{customer.name}</td>
                     <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{customer.phone}</td>
-                    <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body truncate max-w-xs">{customer.address || '-'}</td>
+                    <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body truncate max-w-xs">{defaultAddress}</td>
                     <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body font-semibold text-center">{customer.loyaltyPoints || 0}</td>
                     <td className="px-5 py-4 whitespace-nowrap text-sm font-medium">
                       <Button variant="ghost" size="sm" onClick={() => openModal('edit', customer)} title="Sửa" className="text-text-link hover:text-brand-primary p-1.5">
@@ -149,7 +151,7 @@ const CustomerManagementPage: React.FC = () => {
                       </Button>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
@@ -169,7 +171,7 @@ const CustomerManagementPage: React.FC = () => {
                 <legend className="text-sm font-medium px-1">Thông tin Cá nhân</legend>
                 <Input label="Tên Khách hàng*" name="name" value={currentUser.name || ''} onChange={handleInputChange} required className="mt-2" />
                 <Input label="Số điện thoại*" name="phone" value={currentUser.phone || ''} onChange={handleInputChange} required className="mt-2" />
-                <Input label="Địa chỉ" name="address" value={currentUser.address || ''} onChange={handleInputChange} className="mt-2" />
+                <Input label="Địa chỉ" name="address" value={currentUser.addresses?.[0]?.street || ''} disabled placeholder="(Sửa trong Cổng thông tin Khách hàng)" className="mt-2" />
                 {modalMode === 'edit' && (
                    <Input label="Điểm tích lũy" name="loyaltyPoints" type="number" value={currentUser.loyaltyPoints || 0} onChange={handleInputChange} className="mt-2" />
                 )}

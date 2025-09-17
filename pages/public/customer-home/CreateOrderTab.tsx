@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useMemo, useEffect, FormEvent } from 'react';
 import { useData } from '../../../contexts/DataContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -60,8 +61,10 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
 
   useEffect(() => {
     if (displayCustomer) {
-      setPickupAddress(displayCustomer.address || '');
-      setDeliveryAddress(displayCustomer.address || '');
+      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
+      setPickupAddress(displayCustomer.addresses?.[0]?.street || '');
+      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
+      setDeliveryAddress(displayCustomer.addresses?.[0]?.street || '');
     } else {
       setPickupAddress('');
       setDeliveryAddress('');
@@ -325,9 +328,12 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
     
     // Reset form
     setCustomerOrderItems([]); 
-    if (customerContextForOrder?.address) { 
-      setPickupAddress(customerContextForOrder.address); 
-      setDeliveryAddress(customerContextForOrder.address); 
+    // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
+    if (customerContextForOrder?.addresses && customerContextForOrder.addresses.length > 0) { 
+      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
+      setPickupAddress(customerContextForOrder.addresses[0].street); 
+      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
+      setDeliveryAddress(customerContextForOrder.addresses[0].street); 
     } else {
       setPickupAddress('');
       setDeliveryAddress('');
@@ -364,7 +370,8 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
       {displayCustomer && (
         <div className="p-3 mb-4 bg-emerald-50 text-emerald-700 rounded-md text-sm border border-emerald-300">
           <p><strong className="font-semibold">Khách hàng:</strong> {displayCustomer.name} ({displayCustomer.phone})</p>
-          {displayCustomer.address && <p><strong className="font-semibold">Địa chỉ mặc định:</strong> {displayCustomer.address}</p>}
+          {/* FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'? */}
+          {displayCustomer.addresses?.[0]?.street && <p><strong className="font-semibold">Địa chỉ mặc định:</strong> {displayCustomer.addresses[0].street}</p>}
         </div>
       )}
 

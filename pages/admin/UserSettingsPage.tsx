@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
@@ -8,6 +9,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { User } from '../../types';
 import { UserCogIcon, SaveIcon, KeyIcon, AlertTriangleIcon, User as UserIcon, Building } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -34,7 +36,8 @@ const UserSettingsPage: React.FC = () => {
   useEffect(() => {
     if (currentUser) {
       setName(currentUser.name);
-      setAddress(currentUser.address || '');
+      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
+      setAddress(currentUser.addresses?.[0]?.street || '');
       setAvatarPreview(currentUser.avatarUrl || null);
     }
   }, [currentUser]);
@@ -74,10 +77,20 @@ const UserSettingsPage: React.FC = () => {
     const updatePayload: Partial<User> & { id: string } = {
       id: currentUser.id,
       name: name,
-      address: address || undefined,
       avatarUrl: avatarUrlToSave,
     };
     
+    // FIX: Object literal may only specify known properties, but 'address' does not exist in type 'Partial<User> & { id: string; }'. Did you mean to write 'addresses'?
+    const updatedAddresses = currentUser.addresses ? JSON.parse(JSON.stringify(currentUser.addresses)) : [];
+    if (updatedAddresses.length > 0) {
+        updatedAddresses[0].street = address || '';
+    } else if (address) {
+        updatedAddresses.push({ id: uuidv4(), label: 'Mặc định', street: address, isDefault: true });
+    }
+
+    if (address || updatedAddresses.length > 0) {
+        updatePayload.addresses = updatedAddresses;
+    }
     // Chỉ thêm mật khẩu vào đối tượng cập nhật nếu người dùng đã nhập mật khẩu mới.
     if (newPassword) {
       updatePayload.password = newPassword;

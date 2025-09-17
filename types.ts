@@ -38,6 +38,20 @@ export enum PaymentMethod {
 
 export type Theme = 'light' | 'dark';
 
+export interface Address {
+  id: string;
+  label: string; // e.g., "Nhà riêng", "Văn phòng"
+  street: string;
+  isDefault: boolean;
+}
+
+export interface LoyaltyHistoryEntry {
+  timestamp: Date;
+  orderId?: string;
+  pointsChange: number; // Positive for earning, negative for spending
+  reason: string; // "Tích điểm từ đơn hàng", "Đổi điểm trừ vào đơn hàng", "Quà sinh nhật"
+}
+
 // Core User type for ALL individuals, including customers
 export interface User {
   id: string; 
@@ -58,8 +72,10 @@ export interface User {
   };
 
   // Customer specific
-  address?: string;
+  addresses?: Address[];
+  dob?: Date; // Date of Birth
   loyaltyPoints?: number;
+  loyaltyHistory?: LoyaltyHistoryEntry[];
 }
 
 
@@ -380,7 +396,7 @@ export interface AIServiceItemInput {
 }
 
 // Replaced AICustomerInput with a partial User type for consistency
-export type AICustomerInput = Partial<Pick<User, 'name' | 'phone' | 'address'>>;
+export type AICustomerInput = Partial<Pick<User, 'name' | 'phone' | 'addresses'>>;
 
 export interface OrderDetailsFromAI {
   customer: AICustomerInput;

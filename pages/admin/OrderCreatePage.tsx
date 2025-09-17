@@ -109,7 +109,8 @@ export const OrderCreatePage: React.FC = () => {
         setResolvedCustomer(orderToEdit.customer);
         setCustomerPhoneInput(orderToEdit.customer.phone);
         setCustomerNameInput(orderToEdit.customer.name);
-        setCustomerAddressInput(orderToEdit.customer.address || '');
+        // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
+        setCustomerAddressInput(orderToEdit.customer.addresses?.[0]?.street || '');
         setIsCustomerPhoneLocked(true); 
         setShowNewCustomerFields(false);
         setOrderNotes(orderToEdit.notes || '');
@@ -164,7 +165,8 @@ export const OrderCreatePage: React.FC = () => {
     if (foundCustomer) {
       setResolvedCustomer(foundCustomer);
       setCustomerNameInput(foundCustomer.name);
-      setCustomerAddressInput(foundCustomer.address || '');
+      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
+      setCustomerAddressInput(foundCustomer.addresses?.[0]?.street || '');
       setIsCustomerPhoneLocked(true);
       addNotification({message: `Đã tìm thấy khách hàng: ${foundCustomer.name}`, type: 'success'});
     } else {
@@ -480,8 +482,16 @@ export const OrderCreatePage: React.FC = () => {
     let finalCustomer: User | null = null;
     if (isEditMode && editingOrder) {
         finalCustomer = editingOrder.customer;
-        if (finalCustomer.name !== customerNameInput || finalCustomer.address !== customerAddressInput) {
-           finalCustomer = {...finalCustomer, name: customerNameInput.trim(), address: customerAddressInput.trim() || undefined };
+        // FIX: 'address' is deprecated, using 'addresses' array. This logic updates the first address or creates one.
+        const currentStreet = finalCustomer.addresses?.[0]?.street || '';
+        if (finalCustomer.name !== customerNameInput.trim() || currentStreet !== customerAddressInput.trim()) {
+            const updatedAddresses = finalCustomer.addresses ? [...finalCustomer.addresses] : [];
+            if(updatedAddresses.length > 0) {
+                updatedAddresses[0].street = customerAddressInput.trim();
+            } else if (customerAddressInput.trim()) {
+                updatedAddresses.push({id: uuidv4(), label: 'Mặc định', street: customerAddressInput.trim(), isDefault: true});
+            }
+           finalCustomer = {...finalCustomer, name: customerNameInput.trim(), addresses: updatedAddresses };
         }
     } else { 
         if (!customerPhoneInput.trim()) { setGlobalError('Vui lòng nhập SĐT khách hàng hoặc tìm kiếm.'); return; }
@@ -492,7 +502,8 @@ export const OrderCreatePage: React.FC = () => {
             const newCustomerData: Omit<User, 'id'> = { 
                 name: customerNameInput.trim(), 
                 phone: customerPhoneInput.trim(), 
-                address: customerAddressInput.trim() || undefined, 
+                // FIX: Object literal may only specify known properties, but 'address' does not exist in type 'Omit<User, "id">'. Did you mean to write 'addresses'?
+                addresses: customerAddressInput.trim() ? [{ id: uuidv4(), label: 'Mặc định', street: customerAddressInput.trim(), isDefault: true }] : undefined,
                 loyaltyPoints: 0, 
                 role: UserRole.CUSTOMER,
                 username: customerPhoneInput.trim(), // Use phone as username

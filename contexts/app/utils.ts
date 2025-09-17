@@ -29,6 +29,8 @@ export const THEME_KEY = `${STORAGE_PREFIX}theme`;
 
 // --- Helper for Date Revival ---
 const DATE_FIELDS: Record<string, string[]> = {
+    users: ['dob'],
+    loyaltyHistory: ['timestamp'],
     orders: ['createdAt', 'receivedAt', 'estimatedCompletionTime', 'completedAt'],
     scanHistory: ['timestamp'], // Nested in orders
     notifications: ['createdAt'],
@@ -60,6 +62,9 @@ function reviveDates(key: string, value: any, objectType?: string): any {
   }
   if (key === 'history' && Array.isArray(value) && objectType === 'variableCosts') { 
     return value.map(entry => reviveDatesInObject(entry, 'costHistory'));
+  }
+  if (key === 'loyaltyHistory' && Array.isArray(value)) {
+    return value.map(entry => reviveDatesInObject(entry, 'loyaltyHistory'));
   }
   if (key === 'optOutRequests' && Array.isArray(value)) {
     return value.map(entry => reviveDatesInObject(entry, 'optOutRequests'));
