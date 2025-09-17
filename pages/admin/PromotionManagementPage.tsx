@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, ChangeEvent, FormEvent, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useData } from '../../contexts/DataContext';
@@ -137,51 +136,54 @@ const PromotionCard: React.FC<{
     };
 
     const renderActionButtons = () => {
-        // Owner's approval actions
-        if (isOwner && promotion.status === 'pending' && promotion.createdBy !== currentUser.id) {
+        // ---- Approver Actions ----
+        // An owner can approve a promo from their manager. A chairman can approve any pending promo created by an owner.
+        const isApprover =
+            promotion.status === 'pending' &&
+            promotion.createdBy !== currentUser.id &&
+            (
+                (isOwner && users.find(u => u.id === promotion.createdBy)?.managedBy === currentUser.id) ||
+                (isChairman && users.find(u => u.id === promotion.createdBy)?.role === UserRole.OWNER)
+            );
+    
+        if (isApprover) {
             return <>
+                <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2 text-blue-500" title="Chỉnh sửa"><EditIcon size={18} /></Button>
                 <Button variant="ghost" size="sm" onClick={() => onApprove(promotion.id)} className="p-2 text-status-success" title="Duyệt"><CheckCircle size={18} /></Button>
                 <Button variant="ghost" size="sm" onClick={() => setReasonModal('rejectPromotion')} className="p-2 text-status-danger" title="Từ chối"><XCircle size={18} /></Button>
-            </>
+            </>;
         }
-        // Chairman's actions
-        if (isChairman) {
-            if (promotion.isSystemWide) { // Chairman's own promo
-                return <>
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>
-                </>
-            } else { // Store's promo
-                 return <Button variant="ghost" size="sm" onClick={() => setReasonModal('cancelRequest')} className="p-2 text-amber-600" title="Yêu cầu hủy"><BanIcon size={18} /></Button>
+        
+        // ---- Creator Actions ----
+        const isCreator = promotion.createdBy === currentUser.id;
+        if (isCreator) {
+            const canEdit = promotion.status === 'pending';
+            // Allow deleting unless it's active
+            const canDelete = promotion.status !== 'active';
+            
+            return <>
+                {canEdit && <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>}
+                {canDelete && <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>}
+            </>;
+        }
+    
+        // ---- Chairman Actions on Store Promos ----
+        if (isChairman && !promotion.isSystemWide && promotion.status !== 'pending') {
+            return <Button variant="ghost" size="sm" onClick={() => setReasonModal('cancelRequest')} className="p-2 text-amber-600" title="Yêu cầu hủy"><BanIcon size={18} /></Button>;
+        }
+    
+        // ---- Owner Actions on System Promos ----
+        if (isOwner && promotion.isSystemWide) {
+            if (!myOptOutRequest || myOptOutRequest.status === 'rejected') {
+                return <Button variant="secondary" size="sm" onClick={() => setReasonModal('optOut')}>Từ chối tham gia</Button>;
             }
         }
-        // Owner's actions
-        if (isOwner) {
-            if (promotion.isSystemWide) { // System-wide promo
-                if (!myOptOutRequest || myOptOutRequest.status === 'rejected') {
-                    return <Button variant="secondary" size="sm" onClick={() => setReasonModal('optOut')}>Từ chối tham gia</Button>
-                }
-            } else if (isMyStorePromo) { // My own promo
-                if(promotion.status === 'pending' || promotion.status === 'rejected') {
-                     // Can't edit/delete own promo if it's pending/rejected
-                } else if (myCancellationRequest?.status === 'pending') {
-                    return <Button variant="danger" size="sm" onClick={() => onRespondToCancellation(promotion.id)}>Chấp thuận Hủy</Button>
-                } else {
-                    return <>
-                        <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>
-                    </>
-                }
-            }
+    
+        // ---- Owner Actions on Cancellation Requests ----
+        if (isOwner && isMyStorePromo && myCancellationRequest?.status === 'pending') {
+            return <Button variant="danger" size="sm" onClick={() => onRespondToCancellation(promotion.id)}>Chấp thuận Hủy</Button>;
         }
-        // For Manager, they can edit/delete promos they created, IF NOT PENDING
-        if(currentUser.role === UserRole.MANAGER && promotion.createdBy === currentUser.id && promotion.status !== 'pending' && promotion.status !== 'rejected'){
-             return <>
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>
-                </>
-        }
-
+    
         return null;
     };
 
@@ -780,7 +782,6 @@ const PromotionManagementPage: React.FC = () => {
                         onEdit={openModal.bind(null, 'edit')} 
                         onDelete={handleDelete}
                         onApprove={approvePromotion}
-// FIX: Changed `onReject` to `rejectPromotion` to pass the correct function from the context.
                         onReject={rejectPromotion}
                         onRequestOptOut={requestPromotionOptOut}
                         onRespondToOptOut={respondToOptOutRequest}

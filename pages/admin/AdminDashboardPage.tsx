@@ -97,7 +97,8 @@ const DashboardCharts = () => {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }: { name: string; percent: number; }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
+              {/* FIX: The 'percent' property from recharts can be undefined. Coalesce to 0 to prevent arithmetic error. */}
+              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}>
                 {orderStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name as keyof typeof PIE_COLORS]} />
                 ))}
@@ -455,6 +456,36 @@ const AdminDashboardPage: React.FC = () => {
   const lowStockItemsCount = inventory.filter(item => item.quantity <= item.lowStockThreshold).length;
   const pendingMaterialOrdersCount = materialOrders.filter(mo => mo.status === 'Chờ duyệt').length;
 
+  const pendingPromotionsForApprovalCount = useMemo(() => {
+    if (!currentUser || (currentUser.role !== UserRole.OWNER && currentUser.role !== UserRole.CHAIRMAN)) {
+      return 0;
+    }
+
+    return promotions.filter(p => {
+      if (p.status !== 'pending') {
+        return false;
+      }
+      
+      const creator = findUserById(p.createdBy || '');
+      // If no creator, it's a data issue, but we shouldn't show it for approval
+      if (!creator) {
+        return false;
+      }
+
+      // Chairman can approve any pending promotion (as per the approval logic)
+      if (currentUser.role === UserRole.CHAIRMAN) {
+        return true;
+      }
+
+      // Owner can approve promotions created by users they manage
+      if (currentUser.role === UserRole.OWNER) {
+        return creator.managedBy === currentUser.id;
+      }
+
+      return false;
+    }).length;
+  }, [promotions, currentUser, findUserById]);
+
   const quickStats: QuickStat[] = [
     { title: 'Đơn hàng chờ xác nhận', value: waitingForConfirmationCount, link: '/admin/orders?status=WAITING_FOR_CONFIRMATION', icon: <MessageSquareIcon />, colorClass: 'text-purple-700', iconBgClass: 'bg-purple-100' },
     { title: 'Đơn hàng chờ xử lý', value: pendingOrdersCount, link: '/admin/orders?status=PENDING', icon: <PackageIcon />, colorClass: 'text-status-warning-text', iconBgClass: 'bg-status-warning-bg' },
@@ -463,7 +494,7 @@ const AdminDashboardPage: React.FC = () => {
     { title: 'Mặt hàng tồn kho', value: inventory.length, link: '/admin/inventory', icon: <BarChart2Icon />, colorClass: 'text-brand-primary', iconBgClass: 'bg-blue-100' },
   ];
 
-  const hasAlerts = lowStockItemsCount > 0 || pendingMaterialOrdersCount > 0;
+  const hasAlerts = lowStockItemsCount > 0 || pendingMaterialOrdersCount > 0 || pendingPromotionsForApprovalCount > 0;
 
   return (
     <div className="space-y-6">
@@ -483,6 +514,12 @@ const AdminDashboardPage: React.FC = () => {
                         <li className="flex items-center">
                             <ArrowRightIcon size={16} className="mr-2"/>
                             <Link to="/admin/material-orders" className="hover:underline">Có <strong>{pendingMaterialOrdersCount}</strong> đơn đặt NVL đang chờ bạn duyệt.</Link>
+                        </li>
+                    )}
+                    {pendingPromotionsForApprovalCount > 0 && (currentUser?.role === UserRole.OWNER || currentUser?.role === UserRole.CHAIRMAN) && (
+                        <li className="flex items-center">
+                            <ArrowRightIcon size={16} className="mr-2"/>
+                            <Link to="/admin/promotions" className="hover:underline">Có <strong>{pendingPromotionsForApprovalCount}</strong> chương trình khuyến mãi đang chờ bạn duyệt.</Link>
                         </li>
                     )}
                 </ul>
