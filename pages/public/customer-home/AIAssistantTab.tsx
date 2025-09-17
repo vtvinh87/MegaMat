@@ -2,6 +2,7 @@
 
 
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useData } from '../../../contexts/DataContext';
 // FIX: Replaced deprecated `Customer` type with `User`.
@@ -54,7 +55,18 @@ const aiResponseSchema = {
           properties: {
             phone: { type: Type.STRING },
             name: { type: Type.STRING, nullable: true },
-            address: { type: Type.STRING, nullable: true },
+            // FIX: Changed schema from 'address' to 'addresses' to align with the User data model.
+            addresses: {
+              type: Type.ARRAY,
+              nullable: true,
+              description: "An array with one address object.",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  street: { type: Type.STRING, description: "The full street address." }
+                }
+              }
+            },
           },
         },
         items: {
@@ -379,16 +391,18 @@ ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."
                 
                 if (existingCustomer) {
                     // FIX: 'address' from AI needs to be mapped to 'addresses' array
-                    const street = orderDetailsAI.customer?.address || existingCustomer.addresses?.[0]?.street || '';
+                    // FIX: Corrected access from `.address` to `.addresses?.[0]?.street` to match the data model.
+                    const street = orderDetailsAI.customer?.addresses?.[0]?.street || existingCustomer.addresses?.[0]?.street || '';
                     const addresses = street ? [{ ...(existingCustomer.addresses?.[0] || {id: uuidv4(), label: 'Mặc định', isDefault: true}), street: street }] : existingCustomer.addresses;
                     customerToPassToModal = { ...existingCustomer, name: orderDetailsAI.customer?.name || existingCustomer.name, addresses };
                 } else if (orderDetailsAI.customer?.name && orderDetailsAI.customer?.phone) {
                     // FIX: Create a complete temporary User object with 'addresses' array
+                    // FIX: Corrected object creation to use `addresses` array instead of the non-existent `address` property.
                     customerToPassToModal = { 
                         id: `temp-${uuidv4()}`, 
                         name: orderDetailsAI.customer.name, 
                         phone: orderDetailsAI.customer.phone, 
-                        addresses: orderDetailsAI.customer.address ? [{id: `temp-${uuidv4()}`, label: 'Mặc định', street: orderDetailsAI.customer.address, isDefault: true}] : [], 
+                        addresses: orderDetailsAI.customer.addresses || [], 
                         loyaltyPoints: 0,
                         role: UserRole.CUSTOMER,
                         username: orderDetailsAI.customer.phone
@@ -415,8 +429,7 @@ ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."
             } else {
                 const ownerToNotify = users.find(u => u.id === targetStoreOwnerId);
                 if (ownerToNotify) {
-                    // FIX: Removed the invalid 'ownerId' property from the object literal.
-                    // The `ownerId` is automatically determined by the `addNotification` hook based on the `userId`.
+                    // FIX: Removed the invalid 'ownerId' property. The notification logic correctly derives this from the 'userId'.
                     addNotification({
                         message: `Khiếu nại từ KH (${customer_phone}): "${complaint_text}"`,
                         type: 'warning',

@@ -1,6 +1,7 @@
 
-import React, { createContext, useState, useCallback, useEffect } from 'react';
-import { AppData, Notification, Theme, User, UserRole } from '../types';
+
+import React, { createContext, useState, useCallback, useEffect, useRef } from 'react';
+import { AppData, Notification, Theme, User, UserRole, InventoryItem } from '../types';
 import { useAppState } from './app/state';
 import { seedInitialData } from './app/data';
 import { loadDataFromLocalStorage, saveDataToLocalStorage, CURRENT_USER_KEY, THEME_KEY, simpleHash } from './app/utils';
@@ -201,6 +202,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...appState
   });
   
+  // --- Automated Reordering Logic ---
+  const handleAutomaticReorder = useCallback((lowStockItem: InventoryItem) => {
+    const definition = appState.materialItemDefinitionsData.find(def => 
+        def.name.toLowerCase() === lowStockItem.name.toLowerCase()
+    );
+    
+    if (!definition) {
+        console.warn(`Auto-reorder skipped: No definition for "${lowStockItem.name}".`);
+        return;
+    }
+
+    const hasPendingOrder = appState.allMaterialOrdersData.some(order => 
+        order.ownerId === lowStockItem.ownerId &&
+        order.status === 'Chờ duyệt' &&
+        order.items.some(item => item.materialItemDefinitionId === definition.id)
+    );
+
+    if (hasPendingOrder) {
+        // FIX: Replaced incorrect 'ownerId' with 'userId'. The notification logic derives the ownerId from the userId. The user here is the owner of the item.
+        notificationLogic.addNotification({
+            message: `Tồn kho thấp cho "${lowStockItem.name}", nhưng đã có một đơn đặt hàng đang chờ duyệt.`,
+            type: 'info',
+            userId: lowStockItem.ownerId,
+            showToast: true,
+        });
+        return;
+    }
+
+    const reorderQuantity = Math.max(5, Math.ceil(lowStockItem.lowStockThreshold * 2.5));
+
+    materialManagement.addMaterialOrder({
+        items: [{ materialItemDefinitionId: definition.id, quantity: reorderQuantity }],
+        createdBy: UserRole.SYSTEM,
+        notes: `Tự động tạo do tồn kho thấp. SL hiện tại: ${lowStockItem.quantity}. Ngưỡng: ${lowStockItem.lowStockThreshold}.`,
+    }, lowStockItem.ownerId);
+
+    const managersAndOwner = appState.usersData.filter(u => 
+        (u.role === UserRole.OWNER && u.id === lowStockItem.ownerId) ||
+        (u.role === UserRole.MANAGER && userManagement.getOwnerIdForUser(u.id, appState.usersData) === lowStockItem.ownerId)
+    );
+
+    managersAndOwner.forEach(manager => {
+        notificationLogic.addNotification({
+            message: `Tồn kho thấp cho "${lowStockItem.name}". Một đơn đặt hàng brouillon đã được tự động tạo để bạn duyệt.`,
+            type: 'warning',
+            userId: manager.id,
+            showToast: true
+        });
+    });
+
+  }, [appState.materialItemDefinitionsData, appState.allMaterialOrdersData, appState.usersData, materialManagement, notificationLogic, userManagement]);
+
+  const prevInventoryRef = useRef<InventoryItem[]>();
+  useEffect(() => {
+    if (prevInventoryRef.current === undefined) {
+        prevInventoryRef.current = appState.allInventoryData;
+        return;
+    }
+
+    const prevInventory = prevInventoryRef.current;
+    const currentInventory = appState.allInventoryData;
+    
+    if (prevInventory === currentInventory) {
+        return;
+    }
+
+    currentInventory.forEach(currentItem => {
+        const prevItem = prevInventory.find(p => p.id === currentItem.id);
+        if (prevItem && prevItem.quantity > prevItem.lowStockThreshold && currentItem.quantity <= currentItem.lowStockThreshold) {
+            handleAutomaticReorder(currentItem);
+        }
+    });
+    
+    prevInventoryRef.current = currentInventory;
+  }, [appState.allInventoryData, handleAutomaticReorder]);
+
+
   // --- Auth Logic ---
   const login = useCallback(async (username: string, password?: string): Promise<User | null> => {
     const user = appState.usersData.find(u => u.username.toLowerCase() === username.toLowerCase() || u.phone === username);

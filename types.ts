@@ -11,6 +11,7 @@ export enum UserRole {
   MANAGER = 'Quản lý',
   OWNER = 'Chủ cửa hàng',
   CHAIRMAN = 'Chủ tịch', // Added new role
+  SYSTEM = 'Hệ thống', // For automated actions
 }
 
 export enum OrderStatus {
@@ -536,7 +537,7 @@ export interface AppContextType extends AppData {
     items: Array<{ materialItemDefinitionId: string; quantity: number; itemNotes?: string }>; 
     createdBy: UserRole; 
     notes?: string;
-  }) => void; // ownerId will be set by context
+  }, forOwnerId?: string) => void;
   approveMaterialOrder: (orderId: string, approvedBy: UserRole, notes?: string) => void;
   rejectMaterialOrder: (orderId: string, rejectedBy: UserRole, reason: string) => void;
   

@@ -255,7 +255,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
       const existingGlobalCustomer = globalUsers.find(gc => gc.phone === customerFromAI.phone);
       if (existingGlobalCustomer) {
         // FIX: The 'address' property is deprecated. Construct an 'addresses' array from AI response.
-        const street = orderDetailsFromAI.customer?.address || existingGlobalCustomer.addresses?.[0]?.street;
+        const street = orderDetailsFromAI.customer?.addresses?.[0]?.street || existingGlobalCustomer.addresses?.[0]?.street;
         const addresses = street ? [{...(existingGlobalCustomer.addresses?.[0] || {id: uuidv4(), label: 'Mặc định', isDefault: true}), street}] : existingGlobalCustomer.addresses;
         finalCustomerForOrder = { ...existingGlobalCustomer, name: orderDetailsFromAI.customer?.name || existingGlobalCustomer.name, addresses };
       }

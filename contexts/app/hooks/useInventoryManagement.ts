@@ -80,8 +80,9 @@ export const useInventoryManagement = ({
     };
 
     const managersAndOwners = usersData.filter(u => {
-        if (u.role === UserRole.OWNER || u.role === UserRole.MANAGER) {
-            return findOwnerIdForUser(u.id) === item.ownerId;
+        const userOwnerId = findOwnerIdForUser(u.id);
+        if ( (u.role === UserRole.OWNER && u.id === item.ownerId) || (u.role === UserRole.MANAGER && userOwnerId === item.ownerId) ) {
+            return true;
         }
         return false;
     });

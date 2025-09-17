@@ -510,9 +510,9 @@ export const OrderCreatePage: React.FC = () => {
                 password: '123123', // Default password for admin-created customers
             };
             // FIX: The second argument for `addUser` should be `storeProfileData` (an object) or omitted, not a string. For a customer, it should be omitted.
-            await addNewGlobalCustomer(newCustomerData); // This function now returns a boolean
+            const createdUser = await addNewGlobalCustomer(newCustomerData);
             // Find the newly created customer to attach to the order.
-            finalCustomer = users.find(u => u.phone === newCustomerData.phone && u.role === UserRole.CUSTOMER) || { ...newCustomerData, id: uuidv4() };
+            finalCustomer = createdUser || { ...newCustomerData, id: uuidv4() };
 
         } else { setGlobalError('Không tìm thấy thông tin khách hàng. Vui lòng tìm hoặc tạo mới.'); return; }
     }

@@ -1,5 +1,6 @@
 
 
+
 import { useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { UserRole, MaterialOrder, MaterialItemDefinition, MaterialOrderItemDetail, InventoryItem } from '../../../types';
@@ -25,8 +26,16 @@ export const useMaterialManagement = ({
   setAllInventoryData, // New
   addNotification,
 }: Props) => {
-  const addMaterialOrder = useCallback((orderData: { items: Array<{ materialItemDefinitionId: string; quantity: number; itemNotes?: string }>; createdBy: UserRole; notes?: string; }) => {
-    if (!currentUserOwnerId) {
+  const addMaterialOrder = useCallback((
+    orderData: { 
+      items: Array<{ materialItemDefinitionId: string; quantity: number; itemNotes?: string }>; 
+      createdBy: UserRole; 
+      notes?: string; 
+    }, 
+    forOwnerId?: string
+  ) => {
+    const ownerId = forOwnerId || currentUserOwnerId;
+    if (!ownerId) {
         addNotification({ message: "Không thể tạo đơn đặt NVL vì không xác định được cửa hàng.", type: "error", showToast: true });
         return;
     }
@@ -54,10 +63,10 @@ export const useMaterialManagement = ({
         createdAt: new Date(),
         notes: orderData.notes,
         totalAmount,
-        ownerId: currentUserOwnerId
+        ownerId: ownerId
     };
     setAllMaterialOrdersData(prev => [newOrder, ...prev]);
-    addNotification({ message: `Đã tạo đơn đặt NVL mới ${newOrder.id}.`, type: 'success', showToast: true });
+    addNotification({ message: `Đã tạo đơn đặt NVL mới ${newOrder.id}.`, type: 'success', showToast: true, ownerId });
   }, [currentUserOwnerId, materialItemDefinitionsData, addNotification, setAllMaterialOrdersData]);
 
   const approveMaterialOrder = useCallback((orderId: string, approvedBy: UserRole, notes?: string) => {

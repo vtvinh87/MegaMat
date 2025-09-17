@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
@@ -72,8 +74,8 @@ const UserSettingsPage: React.FC = () => {
       avatarUrlToSave = await fileToBase64(avatarFile);
     }
     
-    // Xây dựng một đối tượng chỉ chứa các trường dữ liệu đã thay đổi.
-    // Điều này đảm bảo chúng ta không gửi lại mật khẩu cũ đã được mã hóa.
+    // Build an update object with only changed fields.
+    // This prevents sending back the old hashed password unintentionally.
     const updatePayload: Partial<User> & { id: string } = {
       id: currentUser.id,
       name: name,
@@ -81,6 +83,7 @@ const UserSettingsPage: React.FC = () => {
     };
     
     // FIX: Object literal may only specify known properties, but 'address' does not exist in type 'Partial<User> & { id: string; }'. Did you mean to write 'addresses'?
+    // Correctly handle the addresses array.
     const updatedAddresses = currentUser.addresses ? JSON.parse(JSON.stringify(currentUser.addresses)) : [];
     if (updatedAddresses.length > 0) {
         updatedAddresses[0].street = address || '';
@@ -88,10 +91,10 @@ const UserSettingsPage: React.FC = () => {
         updatedAddresses.push({ id: uuidv4(), label: 'Mặc định', street: address, isDefault: true });
     }
 
-    if (address || updatedAddresses.length > 0) {
+    if (address || (currentUser.addresses && currentUser.addresses.length > 0)) {
         updatePayload.addresses = updatedAddresses;
     }
-    // Chỉ thêm mật khẩu vào đối tượng cập nhật nếu người dùng đã nhập mật khẩu mới.
+    // Only add the password to the update payload if a new one was entered.
     if (newPassword) {
       updatePayload.password = newPassword;
     }
