@@ -34,6 +34,8 @@ export interface DataContextType {
   acknowledgedSystemPromos: { [ownerId: string]: string[] };
   acknowledgedCancelRequests: { [ownerId: string]: string[] };
   acknowledgedOptOutRequests: { [chairmanId: string]: string[] };
+  // FIX: Added acknowledgedRejectedRequests to the DataContextType to make it available to consumers.
+  acknowledgedRejectedRequests: string[];
   washMethods: WashMethodDefinition[];
   activePublicCustomerId: string | null;
   setActivePublicCustomerId: (customerId: string | null) => void;
@@ -56,6 +58,9 @@ export interface DataContextType {
   requestInventoryAdjustment: (itemId: string, requestedQuantity: number, reason: string) => void;
   approveInventoryAdjustment: (requestId: string) => void;
   rejectInventoryAdjustment: (requestId: string, rejectionReason: string) => void;
+  // FIX: Added acknowledgeRejectedRequest to the DataContextType to make it available to consumers.
+  acknowledgeRejectedRequest: (requestId: string) => void;
+  acknowledgeAllRejectedRequestsForItem: (itemId: string) => void;
   // FIX: Added `& { showToast?: boolean }` to the addNotification type definition to allow passing the showToast property.
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read' | 'ownerId'> & { showToast?: boolean }) => void;
   markNotificationAsRead: (id: string) => void;

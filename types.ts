@@ -128,14 +128,16 @@ export interface Supplier {
 }
 
 export interface InventoryUpdateHistoryEntry {
-  timestamp?: Date; // For backward compatibility
+  timestamp?: Date; // Deprecated, use respondedAt
   requestedAt?: Date;
-  approvedAt?: Date;
+  respondedAt: Date;
   requestedByUserId: string;
-  approvedByUserId: string;
-  reason: string;
+  respondedByUserId: string;
+  reason: string; // Reason for the request
   previousQuantity: number;
-  newQuantity: number;
+  newQuantity: number; // The requested quantity
+  status: 'approved' | 'rejected';
+  rejectionReason?: string; // Only if status is 'rejected'
 }
 
 export interface InventoryItem {
@@ -478,6 +480,7 @@ export interface AppData {
   acknowledgedSystemPromos: { [ownerId: string]: string[] };
   acknowledgedCancelRequests: { [ownerId: string]: string[] };
   acknowledgedOptOutRequests: { [chairmanId: string]: string[] };
+  acknowledgedRejectedRequests: string[];
   washMethods: WashMethodDefinition[];
 }
 
@@ -507,6 +510,8 @@ export interface AppContextType extends AppData {
   requestInventoryAdjustment: (itemId: string, requestedQuantity: number, reason: string) => void;
   approveInventoryAdjustment: (requestId: string) => void;
   rejectInventoryAdjustment: (requestId: string, rejectionReason: string) => void;
+  acknowledgeRejectedRequest: (requestId: string) => void;
+  acknowledgeAllRejectedRequestsForItem: (itemId: string) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read' | 'ownerId'> & { showToast?: boolean }) => void; // ownerId will be set by context
   markNotificationAsRead: (id: string) => void;
   clearNotifications: () => void; // This might be removed if only "mark all read" is used by tray

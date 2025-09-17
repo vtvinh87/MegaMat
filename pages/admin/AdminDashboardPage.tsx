@@ -2,13 +2,13 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
-import { UserRole, Notification, User, OrderStatus, Promotion } from '../../types';
+import { UserRole, Notification, User, OrderStatus, Promotion, InventoryAdjustmentRequest } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 // FIX: Added MessageCircleIcon to imports
-import { PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, AlertTriangleIcon, ArrowRightIcon, Settings2Icon, CheckCircle, InfoIcon, ActivityIcon, BriefcaseIcon, PlusCircleIcon, BuildingIcon, LineChartIcon, PieChartIcon, SparklesIcon, MessageSquareIcon, MessageCircleIcon, RefreshCwIcon, MegaphoneIcon, ShieldAlertIcon } from 'lucide-react';
+import { PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, AlertTriangleIcon, ArrowRightIcon, Settings2Icon, CheckCircle, InfoIcon, ActivityIcon, BriefcaseIcon, PlusCircleIcon, BuildingIcon, LineChartIcon, PieChartIcon, SparklesIcon, MessageSquareIcon, MessageCircleIcon, RefreshCwIcon, MegaphoneIcon, ShieldAlertIcon, XCircleIcon, XIcon } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
 import { GoogleGenAI } from '@google/genai';
 import { Spinner } from '../../components/ui/Spinner';
@@ -97,7 +97,7 @@ const DashboardCharts = () => {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              {/* FIX: The 'percent' property from the recharts Pie component can be undefined or NaN. Using a ternary operator handles both cases correctly, which `??` does not for NaN. */}
+              {/* FIX: The 'percent' property from the recharts Pie component can be undefined. Using a ternary operator to default to 0 handles this case safely and prevents a TypeScript error. */}
               <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent ? percent : 0) * 100).toFixed(0)}%`}>
                 {orderStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name as keyof typeof PIE_COLORS]} />
@@ -205,7 +205,8 @@ const AdminDashboardPage: React.FC = () => {
     orders, suppliers, inventory, users, notifications, findUserById,
     getOwnerIdForUser, materialOrders, findStoreProfileByOwnerId, serviceRatings, staffRatings,
     promotions, acknowledgedSystemPromos, acknowledgedCancelRequests, acknowledgeSystemPromo, acknowledgeCancelRequest,
-    respondToOptOutRequest, acknowledgeOptOutRequest, acknowledgedOptOutRequests
+    respondToOptOutRequest, acknowledgeOptOutRequest, acknowledgedOptOutRequests, inventoryAdjustmentRequests,
+    acknowledgedRejectedRequests, acknowledgeRejectedRequest
   } = useData();
   const navigate = useNavigate();
 
@@ -455,6 +456,17 @@ const AdminDashboardPage: React.FC = () => {
   const processingOrdersCount = orders.filter(o => o.status === OrderStatus.PROCESSING).length;
   const lowStockItemsCount = inventory.filter(item => item.quantity <= item.lowStockThreshold).length;
   const pendingMaterialOrdersCount = materialOrders.filter(mo => mo.status === 'Chờ duyệt').length;
+  const pendingInventoryRequestsCount = useMemo(() => inventoryAdjustmentRequests.filter(req => req.status === 'pending').length, [inventoryAdjustmentRequests]);
+  const unacknowledgedRejectedRequests = useMemo(() => {
+    if (!currentUser) return [];
+    // Show rejected requests created BY the current user that have NOT been acknowledged
+    return inventoryAdjustmentRequests.filter(
+      req => req.status === 'rejected' && 
+             req.requestedByUserId === currentUser.id &&
+             !acknowledgedRejectedRequests.includes(req.id)
+    );
+  }, [inventoryAdjustmentRequests, currentUser, acknowledgedRejectedRequests]);
+
 
   const pendingPromotionsForApprovalCount = useMemo(() => {
     if (!currentUser || (currentUser.role !== UserRole.OWNER && currentUser.role !== UserRole.CHAIRMAN)) {
@@ -500,7 +512,7 @@ const AdminDashboardPage: React.FC = () => {
     { title: 'Mặt hàng tồn kho', value: inventory.length, link: '/admin/inventory', icon: <BarChart2Icon />, colorClass: 'text-brand-primary', iconBgClass: 'bg-blue-100' },
   ];
 
-  const hasAlerts = lowStockItemsCount > 0 || pendingMaterialOrdersCount > 0 || pendingPromotionsForApprovalCount > 0 || pendingManagerReportsCount > 0;
+  const hasAlerts = lowStockItemsCount > 0 || pendingMaterialOrdersCount > 0 || pendingPromotionsForApprovalCount > 0 || pendingManagerReportsCount > 0 || pendingInventoryRequestsCount > 0 || unacknowledgedRejectedRequests.length > 0;
 
   return (
     <div className="space-y-6">
@@ -509,29 +521,62 @@ const AdminDashboardPage: React.FC = () => {
         
         {hasAlerts && (
             <Card title="Cảnh báo & Việc cần làm" icon={<AlertTriangleIcon size={20} className="text-status-warning"/>} className="border-l-4 border-status-warning !bg-status-warning-bg/60">
-                <ul className="space-y-2 text-sm text-status-warning-text font-medium">
+                <ul className="space-y-3 text-sm font-medium">
                     {lowStockItemsCount > 0 && (
-                        <li className="flex items-center">
-                            <ArrowRightIcon size={16} className="mr-2"/>
-                            <Link to="/admin/inventory" className="hover:underline">Có <strong>{lowStockItemsCount}</strong> mặt hàng tồn kho sắp hết.</Link>
+                        <li className="flex items-start text-status-warning-text">
+                            <ArrowRightIcon size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
+                            <div><Link to="/admin/inventory" className="hover:underline">Có <strong>{lowStockItemsCount}</strong> mặt hàng tồn kho sắp hết.</Link></div>
+                        </li>
+                    )}
+                    {pendingInventoryRequestsCount > 0 && (currentUser?.role === UserRole.OWNER || currentUser?.role === UserRole.MANAGER) && (
+                        <li className="flex items-start text-status-warning-text">
+                            <ArrowRightIcon size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
+                            <div><Link to="/admin/inventory" className="hover:underline">Có <strong>{pendingInventoryRequestsCount}</strong> yêu cầu điều chỉnh tồn kho đang chờ duyệt.</Link></div>
+                        </li>
+                    )}
+                    {unacknowledgedRejectedRequests.length > 0 && (
+                        <li className="flex items-start text-status-danger-text">
+                            <XCircleIcon size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
+                            <div>
+                                <p className="font-bold">Bạn có yêu cầu điều chỉnh tồn kho <span className="text-status-danger">bị từ chối</span>:</p>
+                                <ul className="list-disc pl-5 mt-1 space-y-1 text-sm">
+                                    {unacknowledgedRejectedRequests.map(req => (
+                                        <li key={req.id} className="flex justify-between items-center">
+                                            <span>
+                                                <Link to="/admin/inventory" className="hover:underline font-normal text-text-body">{req.inventoryItemName}</Link>
+                                            </span>
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="p-1 h-auto text-xs text-text-muted hover:bg-black/10"
+                                                onClick={() => acknowledgeRejectedRequest(req.id)}
+                                                aria-label={`Đánh dấu đã xem cảnh báo cho ${req.inventoryItemName}`}
+                                            >
+                                                <XIcon size={14} className="mr-1"/> Đã xem
+                                            </Button>
+                                        </li>
+                                    ))}
+                                </ul>
+                                <p className="text-xs text-text-muted mt-1">Hãy kiểm tra lại lý do trong trang Tồn kho.</p>
+                            </div>
                         </li>
                     )}
                     {pendingMaterialOrdersCount > 0 && currentUser?.role !== UserRole.STAFF && (
-                        <li className="flex items-center">
-                            <ArrowRightIcon size={16} className="mr-2"/>
-                            <Link to="/admin/material-orders" className="hover:underline">Có <strong>{pendingMaterialOrdersCount}</strong> đơn đặt NVL đang chờ bạn duyệt.</Link>
+                        <li className="flex items-start text-status-warning-text">
+                            <ArrowRightIcon size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
+                           <div> <Link to="/admin/material-orders" className="hover:underline">Có <strong>{pendingMaterialOrdersCount}</strong> đơn đặt NVL đang chờ bạn duyệt.</Link></div>
                         </li>
                     )}
                     {pendingPromotionsForApprovalCount > 0 && (currentUser?.role === UserRole.OWNER || currentUser?.role === UserRole.CHAIRMAN) && (
-                        <li className="flex items-center">
-                            <ArrowRightIcon size={16} className="mr-2"/>
-                            <Link to="/admin/promotions" className="hover:underline">Có <strong>{pendingPromotionsForApprovalCount}</strong> chương trình khuyến mãi đang chờ bạn duyệt.</Link>
+                        <li className="flex items-start text-status-warning-text">
+                            <ArrowRightIcon size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
+                            <div><Link to="/admin/promotions" className="hover:underline">Có <strong>{pendingPromotionsForApprovalCount}</strong> chương trình khuyến mãi đang chờ bạn duyệt.</Link></div>
                         </li>
                     )}
                     {pendingManagerReportsCount > 0 && currentUser?.role === UserRole.OWNER && (
-                        <li className="flex items-center">
-                            <ArrowRightIcon size={16} className="mr-2"/>
-                            <Link to="/admin/promotions" className="hover:underline">Có <strong>{pendingManagerReportsCount}</strong> báo cáo khuyến mãi từ quản lý cần xem xét.</Link>
+                        <li className="flex items-start text-status-warning-text">
+                            <ArrowRightIcon size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
+                            <div><Link to="/admin/promotions" className="hover:underline">Có <strong>{pendingManagerReportsCount}</strong> báo cáo khuyến mãi từ quản lý cần xem xét.</Link></div>
                         </li>
                     )}
                 </ul>

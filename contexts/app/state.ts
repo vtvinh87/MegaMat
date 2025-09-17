@@ -46,6 +46,7 @@ export const useAppState = () => {
   const [acknowledgedSystemPromos, setAcknowledgedSystemPromos] = useState<{ [ownerId: string]: string[] }>(() => loadDataFromLocalStorage(LsKeys.ACKNOWLEDGED_SYSTEM_PROMOS_KEY, {}));
   const [acknowledgedCancelRequests, setAcknowledgedCancelRequests] = useState<{ [ownerId: string]: string[] }>(() => loadDataFromLocalStorage(LsKeys.ACKNOWLEDGED_CANCEL_REQUESTS_KEY, {}));
   const [acknowledgedOptOutRequests, setAcknowledgedOptOutRequests] = useState<{ [chairmanId: string]: string[] }>(() => loadDataFromLocalStorage(LsKeys.ACKNOWLEDGED_OPT_OUT_REQUESTS_KEY, {}));
+  const [acknowledgedRejectedRequestsData, setAcknowledgedRejectedRequestsData] = useState<string[]>(() => loadDataFromLocalStorage<string[]>(LsKeys.ACKNOWLEDGED_REJECTED_REQUESTS_KEY, []));
   const [washMethodsData, setWashMethodsData] = useState<WashMethodDefinition[]>(() => loadDataFromLocalStorage<WashMethodDefinition[]>(LsKeys.WASH_METHODS_KEY, []));
 
   // Granular, debounced effects for saving each piece of state
@@ -71,6 +72,7 @@ export const useAppState = () => {
   useDebouncedSave(LsKeys.ACKNOWLEDGED_SYSTEM_PROMOS_KEY, acknowledgedSystemPromos);
   useDebouncedSave(LsKeys.ACKNOWLEDGED_CANCEL_REQUESTS_KEY, acknowledgedCancelRequests);
   useDebouncedSave(LsKeys.ACKNOWLEDGED_OPT_OUT_REQUESTS_KEY, acknowledgedOptOutRequests);
+  useDebouncedSave(LsKeys.ACKNOWLEDGED_REJECTED_REQUESTS_KEY, acknowledgedRejectedRequestsData);
   useDebouncedSave(LsKeys.WASH_METHODS_KEY, washMethodsData);
 
   return {
@@ -98,6 +100,7 @@ export const useAppState = () => {
     acknowledgedSystemPromos, setAcknowledgedSystemPromos,
     acknowledgedCancelRequests, setAcknowledgedCancelRequests,
     acknowledgedOptOutRequests, setAcknowledgedOptOutRequests,
+    acknowledgedRejectedRequestsData, setAcknowledgedRejectedRequestsData,
     washMethodsData, setWashMethodsData,
   };
 };

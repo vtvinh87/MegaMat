@@ -6,7 +6,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { PlusCircleIcon, EditIcon, SearchIcon, AlertTriangleIcon, Archive, Hash, CheckSquare, Sliders, Tag, CameraIcon, HistoryIcon, XCircleIcon, CheckIcon, XIcon, UserCheck, InboxIcon, ArrowRight, ClockIcon } from 'lucide-react';
+import { PlusCircleIcon, EditIcon, SearchIcon, AlertTriangleIcon, Archive, Hash, CheckSquare, Sliders, Tag, CameraIcon, HistoryIcon, XCircleIcon, CheckIcon, XIcon, UserCheck, InboxIcon, ArrowRight, ClockIcon, MessageSquare, UserIcon, CalendarIcon } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import { Spinner } from '../../components/ui/Spinner';
@@ -30,7 +30,9 @@ const InventoryManagementPage: React.FC = () => {
     inventoryAdjustmentRequests,
     addNotification, 
     findUserById, 
-    users 
+    users,
+    acknowledgedRejectedRequests,
+    acknowledgeAllRejectedRequestsForItem,
   } = useData();
   const { currentUser } = useAuth();
 
@@ -53,6 +55,19 @@ const InventoryManagementPage: React.FC = () => {
   const pendingRequests = useMemo(() => {
     return inventoryAdjustmentRequests.filter(req => req.status === 'pending');
   }, [inventoryAdjustmentRequests]);
+  
+  const rejectedRequestIdsForCurrentUser = useMemo(() => {
+    if (!currentUser) return new Set<string>();
+    return new Set(
+      inventoryAdjustmentRequests
+        .filter(req => 
+            req.status === 'rejected' && 
+            req.requestedByUserId === currentUser.id &&
+            !acknowledgedRejectedRequests.includes(req.id)
+        )
+        .map(req => req.inventoryItemId)
+    );
+  }, [inventoryAdjustmentRequests, currentUser, acknowledgedRejectedRequests]);
 
   const filteredInventory = useMemo(() => {
     return inventory.filter(item =>
@@ -234,6 +249,7 @@ const InventoryManagementPage: React.FC = () => {
                   const pendingRequest = inventoryAdjustmentRequests.find(req => req.inventoryItemId === item.id && req.status === 'pending');
                   let statusElement: React.ReactNode;
                   let quantityElement: React.ReactNode;
+                  const hasRejectedRequest = rejectedRequestIdsForCurrentUser.has(item.id);
                   
                   if (pendingRequest) {
                     const requesterName = findUserById(pendingRequest.requestedByUserId)?.name || 'Không rõ';
@@ -273,7 +289,19 @@ const InventoryManagementPage: React.FC = () => {
 
                   return (
                     <tr key={item.id} className={`${item.quantity <= 0 && !pendingRequest ? 'bg-status-danger-bg/40' : item.quantity <= item.lowStockThreshold && !pendingRequest ? 'bg-status-warning-bg/50' : ''} hover:bg-bg-surface-hover transition-colors`}>
-                        <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-text-heading">{item.name}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-text-heading flex items-center">
+                          {item.name}
+                          {hasRejectedRequest && (
+                            <button
+                                onClick={() => acknowledgeAllRejectedRequestsForItem(item.id)}
+                                className="ml-2 p-0.5 rounded-full text-status-danger hover:bg-status-danger-bg/50 transition-colors"
+                                title="Bạn có yêu cầu bị từ chối cho vật tư này. Nhấn để ẩn cảnh báo."
+                                aria-label={`Ẩn cảnh báo bị từ chối cho ${item.name}`}
+                            >
+                                <XCircleIcon size={16}/>
+                            </button>
+                          )}
+                        </td>
                         <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{quantityElement}</td>
                         <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{item.unit}</td>
                         <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{item.lowStockThreshold}</td>
@@ -367,46 +395,61 @@ const InventoryManagementPage: React.FC = () => {
       )}
       
       {historyItem && (
-        <Modal isOpen={true} onClose={() => setHistoryItem(null)} title={`Lịch sử thay đổi: ${historyItem.name}`} size="xl">
-          <div className="max-h-96 overflow-y-auto">
+        <Modal isOpen={true} onClose={() => setHistoryItem(null)} title={`Lịch sử thay đổi: ${historyItem.name}`} size="5xl">
+          <div className="max-h-[70vh] overflow-y-auto">
             {(!historyItem.history || historyItem.history.length === 0) ? (
               <p className="text-text-muted text-center py-4">Không có lịch sử thay đổi nào cho vật tư này.</p>
             ) : (
-              <table className="min-w-full text-sm">
-                <thead className="sticky top-0 bg-bg-subtle">
-                  <tr>
-                    <th className="p-2 text-left font-semibold text-text-muted">Người Yêu cầu</th>
-                    <th className="p-2 text-left font-semibold text-text-muted">Thời gian Yêu cầu</th>
-                    <th className="p-2 text-left font-semibold text-text-muted">Người Duyệt</th>
-                    <th className="p-2 text-left font-semibold text-text-muted">Thời gian Duyệt</th>
-                    <th className="p-2 text-left font-semibold text-text-muted">Lý do</th>
-                    <th className="p-2 text-right font-semibold text-text-muted">Thay đổi SL</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-base">
-                  {[...historyItem.history].sort((a, b) => {
-                      const dateA = a.approvedAt || a.timestamp;
-                      const dateB = b.approvedAt || b.timestamp;
-                      if (!dateA || !dateB) return 0;
-                      return new Date(dateB).getTime() - new Date(dateA).getTime();
-                  }).map(entry => {
-                    const approvedTime = entry.approvedAt || entry.timestamp;
-                    const key = (approvedTime ? new Date(approvedTime).toISOString() : uuidv4()) + entry.requestedByUserId;
-                    return (
-                      <tr key={key}>
-                        <td className="p-2">{findUserById(entry.requestedByUserId)?.name || 'Không rõ'}</td>
-                        <td className="p-2 whitespace-nowrap">{entry.requestedAt ? new Date(entry.requestedAt).toLocaleString('vi-VN', {dateStyle: 'short', timeStyle: 'short'}) : 'N/A'}</td>
-                        <td className="p-2">{findUserById(entry.approvedByUserId)?.name || 'Không rõ'}</td>
-                        <td className="p-2 whitespace-nowrap">{approvedTime ? new Date(approvedTime).toLocaleString('vi-VN', {dateStyle: 'short', timeStyle: 'short'}) : 'N/A'}</td>
-                        <td className="p-2">{entry.reason}</td>
-                        <td className="p-2 text-right font-mono">
-                          {entry.previousQuantity} <ArrowRight size={12} className="inline mx-1" /> {entry.newQuantity}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="sticky top-0 bg-bg-subtle z-10">
+                    <tr>
+                      <th className="p-2 text-left font-semibold text-text-muted"><CheckSquare size={14} className="inline mr-1.5"/>Trạng thái</th>
+                      <th className="p-2 text-left font-semibold text-text-muted"><UserIcon size={14} className="inline mr-1.5"/>Người Y/C</th>
+                      <th className="p-2 text-left font-semibold text-text-muted"><CalendarIcon size={14} className="inline mr-1.5"/>Thời gian Y/C</th>
+                      <th className="p-2 text-left font-semibold text-text-muted"><UserCheck size={14} className="inline mr-1.5"/>Người P.Hồi</th>
+                      <th className="p-2 text-left font-semibold text-text-muted"><CalendarIcon size={14} className="inline mr-1.5"/>Thời gian P.Hồi</th>
+                      <th className="p-2 text-right font-semibold text-text-muted"><Hash size={14} className="inline mr-1.5"/>Thay đổi SL</th>
+                      <th className="p-2 text-left font-semibold text-text-muted"><MessageSquare size={14} className="inline mr-1.5"/>Lý do Y/C</th>
+                      <th className="p-2 text-left font-semibold text-text-muted"><MessageSquare size={14} className="inline mr-1.5"/>Ghi chú/Lý do Từ chối</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-base">
+                    {[...historyItem.history].sort((a, b) => {
+                        const dateA = a.respondedAt || a.timestamp;
+                        const dateB = b.respondedAt || b.timestamp;
+                        if (!dateA || !dateB) return 0;
+                        return new Date(dateB).getTime() - new Date(dateA).getTime();
+                    }).map(entry => {
+                      const respondedTime = entry.respondedAt || entry.timestamp;
+                      const key = (respondedTime ? new Date(respondedTime).toISOString() : uuidv4()) + entry.requestedByUserId;
+                      const isApproved = entry.status === 'approved';
+                      
+                      return (
+                        <tr key={key} className={isApproved ? '' : 'bg-status-danger-bg/20'}>
+                          <td className="p-2 whitespace-nowrap">
+                            {isApproved ? (
+                              <span className="font-semibold text-status-success-text inline-flex items-center"><CheckIcon size={14} className="mr-1"/>Đã duyệt</span>
+                            ) : (
+                              <span className="font-semibold text-status-danger-text inline-flex items-center"><XIcon size={14} className="mr-1"/>Bị từ chối</span>
+                            )}
+                          </td>
+                          <td className="p-2">{findUserById(entry.requestedByUserId)?.name || 'Không rõ'}</td>
+                          <td className="p-2 whitespace-nowrap">{entry.requestedAt ? new Date(entry.requestedAt).toLocaleString('vi-VN', {dateStyle: 'short', timeStyle: 'short'}) : 'N/A'}</td>
+                          <td className="p-2">{findUserById(entry.respondedByUserId)?.name || 'Không rõ'}</td>
+                          <td className="p-2 whitespace-nowrap">{respondedTime ? new Date(respondedTime).toLocaleString('vi-VN', {dateStyle: 'short', timeStyle: 'short'}) : 'N/A'}</td>
+                          <td className="p-2 text-right font-mono">
+                            {entry.previousQuantity} → {entry.newQuantity}
+                            {!isApproved && <span className="text-xs text-status-danger-text ml-1">(Bị từ chối)</span>}
+                          </td>
+                          <td className="p-2 max-w-xs truncate" title={entry.reason}>{entry.reason}</td>
+                          <td className="p-2 max-w-xs truncate" title={entry.rejectionReason}>{entry.rejectionReason || '-'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </Modal>

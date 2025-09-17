@@ -11,6 +11,7 @@ type Props = {
   inventoryAdjustmentRequests: InventoryAdjustmentRequest[];
   setInventoryAdjustmentRequests: React.Dispatch<React.SetStateAction<InventoryAdjustmentRequest[]>>;
   usersData: User[];
+  setAcknowledgedRejectedRequestsData: React.Dispatch<React.SetStateAction<string[]>>;
 };
 
 export const useInventoryManagement = ({
@@ -22,6 +23,7 @@ export const useInventoryManagement = ({
   inventoryAdjustmentRequests,
   setInventoryAdjustmentRequests,
   usersData,
+  setAcknowledgedRejectedRequestsData,
 }: Props) => {
   const addInventoryItem = useCallback((item: Omit<InventoryItem, 'id' | 'ownerId'>) => {
     if (!currentUserOwnerId) {
@@ -111,12 +113,13 @@ export const useInventoryManagement = ({
         if (item.id === request.inventoryItemId) {
             const historyEntry: InventoryUpdateHistoryEntry = {
                 requestedAt: request.createdAt,
-                approvedAt: new Date(),
+                respondedAt: new Date(),
                 requestedByUserId: request.requestedByUserId,
-                approvedByUserId: currentUser.id,
+                respondedByUserId: currentUser.id,
                 reason: request.reason,
                 previousQuantity: request.currentQuantity,
                 newQuantity: request.requestedQuantity,
+                status: 'approved',
             };
             return {
                 ...item,
@@ -156,12 +159,36 @@ export const useInventoryManagement = ({
         return;
     }
     
+    // 1. Add rejected entry to inventory history
+    setAllInventoryData(prev => prev.map(item => {
+        if (item.id === request.inventoryItemId) {
+            const historyEntry: InventoryUpdateHistoryEntry = {
+                requestedAt: request.createdAt,
+                respondedAt: new Date(),
+                requestedByUserId: request.requestedByUserId,
+                respondedByUserId: currentUser.id,
+                reason: request.reason, // Request reason
+                previousQuantity: request.currentQuantity,
+                newQuantity: request.requestedQuantity, // The proposed (rejected) quantity
+                status: 'rejected',
+                rejectionReason: rejectionReason, // Rejection reason
+            };
+            return {
+                ...item,
+                history: [...(item.history || []), historyEntry],
+            };
+        }
+        return item;
+    }));
+    
+    // 2. Update Request Status
     setInventoryAdjustmentRequests(prev => prev.map(r => 
         r.id === requestId 
         ? { ...r, status: 'rejected', respondedByUserId: currentUser.id, respondedAt: new Date(), rejectionReason } 
         : r
     ));
 
+    // 3. Notify
     addNotification({ message: `Đã từ chối yêu cầu cho "${request.inventoryItemName}".`, type: 'warning', showToast: true });
     addNotification({ 
         message: `Yêu cầu điều chỉnh tồn kho cho "${request.inventoryItemName}" của bạn đã bị từ chối. Lý do: ${rejectionReason}`, 
@@ -169,7 +196,36 @@ export const useInventoryManagement = ({
         userId: request.requestedByUserId,
         showToast: true 
     });
-  }, [currentUser, inventoryAdjustmentRequests, setInventoryAdjustmentRequests, addNotification]);
+  }, [currentUser, inventoryAdjustmentRequests, setAllInventoryData, setInventoryAdjustmentRequests, addNotification]);
+
+  const acknowledgeRejectedRequest = useCallback((requestId: string) => {
+    setAcknowledgedRejectedRequestsData(prev => {
+        if (prev.includes(requestId)) {
+            return prev;
+        }
+        return [...prev, requestId];
+    });
+  }, [setAcknowledgedRejectedRequestsData]);
+
+  const acknowledgeAllRejectedRequestsForItem = useCallback((itemId: string) => {
+    if (!currentUser) return;
+    
+    const requestIdsToAcknowledge = inventoryAdjustmentRequests
+      .filter(req => 
+        req.inventoryItemId === itemId &&
+        req.status === 'rejected' &&
+        req.requestedByUserId === currentUser.id
+      )
+      .map(req => req.id);
+
+    if (requestIdsToAcknowledge.length > 0) {
+      setAcknowledgedRejectedRequestsData(prev => {
+        const newAcks = new Set([...prev, ...requestIdsToAcknowledge]);
+        return Array.from(newAcks);
+      });
+      addNotification({ message: 'Đã ẩn cảnh báo cho vật tư này.', type: 'info', showToast: true });
+    }
+  }, [currentUser, inventoryAdjustmentRequests, setAcknowledgedRejectedRequestsData, addNotification]);
 
 
   return {
@@ -178,5 +234,7 @@ export const useInventoryManagement = ({
     requestInventoryAdjustment,
     approveInventoryAdjustment,
     rejectInventoryAdjustment,
+    acknowledgeRejectedRequest,
+    acknowledgeAllRejectedRequestsForItem,
   };
 };
