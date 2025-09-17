@@ -1,9 +1,9 @@
+
 import { createContext, useContext } from 'react';
 import { 
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
     Notification, VariableCost, FixedCostItem, FixedCostUpdateHistoryEntry, 
     ServiceRating, StaffRating, Tip, KPI, StoreProfile, StoreUpdateHistoryEntry, Promotion,
-    // FIX: Imported missing MaterialItemDefinition type and removed Customer
     Theme, UserRole, VariableCostInput, KpiPeriodType, MaterialItemDefinition, WashMethodDefinition, InventoryAdjustmentRequest
 } from '../types';
 
@@ -12,7 +12,6 @@ export interface DataContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   users: User[];
-  // FIX: Removed deprecated `customers` data.
   services: ServiceItem[];
   orders: Order[];
   suppliers: Supplier[];
@@ -34,7 +33,6 @@ export interface DataContextType {
   acknowledgedSystemPromos: { [ownerId: string]: string[] };
   acknowledgedCancelRequests: { [ownerId: string]: string[] };
   acknowledgedOptOutRequests: { [chairmanId: string]: string[] };
-  // FIX: Added acknowledgedRejectedRequests to the DataContextType to make it available to consumers.
   acknowledgedRejectedRequests: string[];
   washMethods: WashMethodDefinition[];
   activePublicCustomerId: string | null;
@@ -46,22 +44,18 @@ export interface DataContextType {
   findOrder: (idOrPhone: string) => Order | undefined;
   findUserById: (userId: string) => User | undefined;
   findUsersByManagerId: (managerId: string | null) => User[];
-  // FIX: Removed deprecated customer management functions. User management is handled by addUser/updateUser.
   addService: (serviceData: Omit<ServiceItem, 'id'>) => void;
   updateService: (service: ServiceItem) => void;
   deleteService: (serviceId: string) => void;
   addSupplier: (supplier: Supplier) => void;
   updateSupplier: (supplier: Supplier) => void;
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'ownerId'>) => void;
-  // FIX: The type signature for `updateInventoryItem` was incorrect. It requires a `reason` string as a second argument. The signature has been updated to match the implementation in `useInventoryManagement`.
   updateInventoryItem: (item: InventoryItem, reason: string) => void;
   requestInventoryAdjustment: (itemId: string, requestedQuantity: number, reason: string) => void;
   approveInventoryAdjustment: (requestId: string) => void;
   rejectInventoryAdjustment: (requestId: string, rejectionReason: string) => void;
-  // FIX: Added acknowledgeRejectedRequest to the DataContextType to make it available to consumers.
   acknowledgeRejectedRequest: (requestId: string) => void;
   acknowledgeAllRejectedRequestsForItem: (itemId: string) => void;
-  // FIX: Added `& { showToast?: boolean }` to the addNotification type definition to allow passing the showToast property.
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read' | 'ownerId'> & { showToast?: boolean }) => void;
   markNotificationAsRead: (id: string) => void;
   clearNotifications: () => void;

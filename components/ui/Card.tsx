@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface CardProps {
@@ -13,7 +14,6 @@ interface CardProps {
   onClick?: (e: React.MouseEvent) => void; // Added for Modal
 }
 
-// FIX: Wrapped component in React.forwardRef to allow it to accept a ref.
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ children, className = '', title, icon, actions, titleClassName, contentClassName, headerClassName, titleId, onClick }, ref) => {
     return (

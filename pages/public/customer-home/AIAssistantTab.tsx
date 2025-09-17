@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useData } from '../../../contexts/DataContext';
 // FIX: Replaced deprecated `Customer` type with `User`.
@@ -75,6 +74,25 @@ const aiResponseSchema = {
         targetStoreOwnerId: { type: Type.STRING, description: "The ID of the store where the order should be placed." },
       },
     },
+    create_manager_notification_request: {
+      type: Type.OBJECT,
+      description: "A request to create a notification for a store manager regarding a customer complaint.",
+      nullable: true,
+      properties: {
+        complaint_text: {
+          type: Type.STRING,
+          description: "The full text of the customer's complaint.",
+        },
+        customer_phone: {
+          type: Type.STRING,
+          description: "The customer's phone number. This is mandatory.",
+        },
+        targetStoreOwnerId: {
+          type: Type.STRING,
+          description: "The ID of the store owner to be notified.",
+        },
+      },
+    },
   },
 };
 
@@ -123,7 +141,6 @@ export const AIAssistantTab: React.FC<AIAssistantTabProps> = ({ loggedInCustomer
   const activePromotions = useMemo(() => {
     const now = new Date();
     return promotions.filter(p => 
-        // FIX: Replaced deprecated `p.isActive` with `p.status === 'active'` to correctly check the promotion's status.
         p.status === 'active' &&
         (!p.startDate || new Date(p.startDate) <= now) &&
         (!p.endDate || new Date(p.endDate) >= now)
@@ -139,7 +156,7 @@ export const AIAssistantTab: React.FC<AIAssistantTabProps> = ({ loggedInCustomer
         const geminiChatInstance = new GoogleGenAI({ apiKey: aiApiKey });
         
         const servicesListForAI = availableServices.map(s => `* "${s.name}" (Giá: ${s.price.toLocaleString('vi-VN')} VNĐ / ${s.unit})`).join('\n');
-        const storeProfilesListForAI = storeProfiles.map(p => `* "${p.storeName}" (ID cửa hàng: ${p.ownerId}, Địa chỉ: ${p.storeAddress || 'N/A'})`).join('\n');
+        const storeProfilesListForAI = storeProfiles.map(p => `* "${p.storeName}" (ID cửa hàng: ${p.ownerId}, Địa chỉ: ${p.storeAddress || 'N/A'}, SĐT: ${p.storePhone || 'N/A'})`).join('\n');
         const promotionsListForAI = activePromotions.map(p => {
             const storeScope = p.isSystemWide ? 'Toàn chuỗi' : `Cửa hàng: ${storeProfiles.find(s => s.ownerId === p.ownerId)?.storeName || 'chỉ định'}`;
             const discountText = p.discountType === 'percentage'
@@ -158,6 +175,13 @@ export const AIAssistantTab: React.FC<AIAssistantTabProps> = ({ loggedInCustomer
 4.  **Order Modification:** If the user wants to change something after you've summarized, DO NOT send \`create_order_request\`. Instead, use \`text_response\` to acknowledge the change, update the order details internally, and present a NEW, updated summary for confirmation.
 5.  **Promotion Handling:** After getting items and store choice, INFORM the user about relevant promotion codes from the list. DO NOT apply them yourself.
 6.  **Final Confirmation Message Generation:** After you send a \`create_order_request\`, the system will process it. You will then receive a system message from the user like: \`(System message: Order [order_id] created successfully. Customer was [new/existing]. Please provide the final confirmation message to the user.)\`. Based on this message, you MUST generate a final confirmation for the user in the \`text_response\` field. If the customer was **new**, your response MUST BE: "Đơn hàng của bạn đã được tạo thành công! Một tài khoản cũng đã được tạo cho bạn với SĐT đã cung cấp. Mật khẩu mặc định là "123123". Vui lòng đăng nhập để theo dõi đơn hàng và đổi mật khẩu nhé.". If the customer was **existing**, your response MUST BE: "Đã tạo thành công đơn hàng [order_id] cho bạn. Cảm ơn bạn đã sử dụng dịch vụ!". You MUST replace \`[order_id]\` with the actual ID from the system message.
+
+**Problem Resolution Flow:**
+1. If a user expresses a complaint (e.g., "my clothes are still damp", "I'm not happy with the service", "đồ của tôi bị hỏng"), first offer a sympathetic text response using 'text_response'.
+2. Then, in the SAME JSON response, populate the \`create_manager_notification_request\` field.
+3. You MUST include the user's phone number in \`customer_phone\`. If you don't know it, you MUST ask for it first.
+4. You MUST determine which store the complaint is about. If the user is logged in or has previously created an order, you can infer the store. If you are unsure, you MUST ask which store their complaint is about (provide the list of available stores).
+5. The \`targetStoreOwnerId\` MUST be one of the store IDs provided in the context.
 
 **General Information (use for text_response):**
 - Our store is open from 8:00 AM to 9:00 PM every day.
@@ -192,13 +216,14 @@ The user is ALREADY LOGGED IN. Their details are:
 
 ${commonWorkflows}
 
+**Store Information (use for answering general questions):**
+- General Hours: 8:00 AM - 9:00 PM, every day.
+${storeProfilesListForAI}
+--- End of store list ---
+
 **Available Services (use 'serviceName'):**
 ${servicesListForAI}
 --- End of service list ---
-
-**Available Stores (use 'ID cửa hàng' for 'targetStoreOwnerId'):**
-${storeProfilesListForAI}
---- End of store list ---
 
 **Available Promotions (Inform user about these, do not apply them yourself):**
 ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."}
@@ -215,7 +240,7 @@ ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."
             // GENERIC INSTRUCTION for anonymous users
             systemInstruction = `You are a friendly and efficient AI Assistant for the ${APP_NAME} laundromat. Your goal is to help users look up orders or create new ones.
 
-Your responses MUST conform to the provided JSON schema. Based on the user's request, you will populate ONE of the following fields in your JSON response: 'text_response', 'lookup_info_request', or 'create_order_request'.
+Your responses MUST conform to the provided JSON schema. Based on the user's request, you will populate ONE of the following fields in your JSON response: 'text_response', 'lookup_info_request', 'create_order_request', or 'create_manager_notification_request'.
 
 **Key Workflows:**
 1.  **General Conversation:** For greetings, questions, or anything that isn't a specific action, use the \`text_response\` field.
@@ -233,13 +258,14 @@ Your responses MUST conform to the provided JSON schema. Based on the user's req
     
 ${commonWorkflows}
 
+**Store Information (use for answering general questions):**
+- General Hours: 8:00 AM - 9:00 PM, every day.
+${storeProfilesListForAI}
+--- End of store list ---
+
 **Available Services (use 'serviceName'):**
 ${servicesListForAI}
 --- End of service list ---
-
-**Available Stores (use 'ID cửa hàng' for 'targetStoreOwnerId'):**
-${storeProfilesListForAI}
---- End of store list ---
 
 **Available Promotions (Inform user about these, do not apply them yourself):**
 ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."}
@@ -248,7 +274,7 @@ ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."
             initialAiMessage = {
                 id: uuidv4(),
                 sender: 'ai',
-                text: `Xin chào! Tôi là Trợ Lý AI của ${APP_NAME}. Tôi có thể giúp bạn tra cứu đơn hàng hoặc tạo đơn hàng mới. Bạn cần gì hôm nay?`,
+                text: `Xin chào! Tôi là Trợ Lý AI của ${APP_NAME}. Tôi có thể giúp bạn tra cứu đơn hàng, đặt lịch, hoặc trả lời các câu hỏi về cửa hàng. Bạn cần gì hôm nay?`,
                 timestamp: new Date()
             };
         }
@@ -370,6 +396,30 @@ ${promotionsListForAI || "Hiện không có chương trình khuyến mãi nào."
                     aiMessageToDisplay = { id: uuidv4(), sender: 'ai', text: "Tuyệt vời! Tôi đã chuẩn bị đơn hàng. Vui lòng kiểm tra và xác nhận trong hộp thoại nhé.", timestamp: new Date() };
                 } else {
                      aiMessageToDisplay = { id: uuidv4(), sender: 'ai', text: "Thông tin khách hàng (SĐT, Tên) chưa đủ. Vui lòng cung cấp lại.", timestamp: new Date() };
+                }
+            }
+        } else if (parsedJson.create_manager_notification_request) {
+            const { complaint_text, customer_phone, targetStoreOwnerId } = parsedJson.create_manager_notification_request;
+
+            if (!complaint_text || !customer_phone || !targetStoreOwnerId) {
+                aiMessageToDisplay = { id: uuidv4(), sender: 'ai', text: "Tôi cần thêm thông tin để gửi phản hồi của bạn. Vui lòng cho biết chi tiết vấn đề, SĐT của bạn, và cửa hàng bạn đã sử dụng dịch vụ.", timestamp: new Date() };
+            } else if (!storeProfiles.some(p => p.ownerId === targetStoreOwnerId)) {
+                aiMessageToDisplay = { id: uuidv4(), sender: 'ai', text: `Cửa hàng bạn chọn không hợp lệ. Vui lòng chọn một trong các cửa hàng sau: ${storeProfiles.map(p => p.storeName).join(', ')}.`, timestamp: new Date() };
+            } else {
+                const ownerToNotify = users.find(u => u.id === targetStoreOwnerId);
+                if (ownerToNotify) {
+                    // FIX: Removed the invalid 'ownerId' property from the object literal.
+                    // The `ownerId` is automatically determined by the `addNotification` hook based on the `userId`.
+                    addNotification({
+                        message: `Khiếu nại từ KH (${customer_phone}): "${complaint_text}"`,
+                        type: 'warning',
+                        userId: ownerToNotify.id,
+                        userRole: ownerToNotify.role,
+                        showToast: true,
+                    });
+                    aiMessageToDisplay = { id: uuidv4(), sender: 'ai', text: "Cảm ơn bạn đã phản hồi. Chúng tôi đã ghi nhận vấn đề của bạn và quản lý cửa hàng sẽ sớm xem xét.", timestamp: new Date() };
+                } else {
+                    aiMessageToDisplay = { id: uuidv4(), sender: 'ai', text: "Lỗi: Không tìm thấy người quản lý cho cửa hàng đã chọn. Chúng tôi sẽ xem xét vấn đề này.", timestamp: new Date() };
                 }
             }
         } else if (parsedJson.text_response) {

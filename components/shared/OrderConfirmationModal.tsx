@@ -1,9 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { QRCodeDisplay } from './QRCodeDisplay';
-// FIX: Replaced deprecated Customer type with User.
-// FIX: Removed deprecated WashMethod type and added WashMethodDefinition for lookups.
 import { Order, User, ServiceItem as AppServiceItem, OrderItem, OrderStatus, UserRole, ScanHistoryEntry, WashMethodDefinition, OrderDetailsFromAI as AppOrderDetailsFromAI, StoreProfile, PaymentStatus, Promotion } from '../../types';
 import { XIcon, CheckCircleIcon, ShoppingCartIcon, UserIcon, CalendarDaysIcon, TruckIcon, DollarSignIcon, AlertTriangleIcon, InfoIcon, PlusIcon, MinusCircleIcon, TagIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -15,7 +14,6 @@ import { Modal } from '../ui/Modal';
 interface EditableOrderItem {
   id: string;
   serviceNameKey: string;
-  // FIX: Replaced selectedWashMethod with selectedWashMethodId to align with data model.
   selectedWashMethodId: string;
   quantity: number;
   notes?: string;
@@ -26,12 +24,10 @@ interface OrderConfirmationModalProps {
   onClose: () => void;
   onConfirm: (confirmedOrder: Order, isNewCustomer: boolean) => void; 
   orderDetailsFromAI: AppOrderDetailsFromAI;
-  // FIX: Replaced deprecated Customer type with User.
   customer: User; 
   availableServices: AppServiceItem[];
   addUser: (customer: Omit<User, 'id'>) => Promise<User | null>; 
   targetStoreOwnerId?: string; 
-  // FIX: Added washMethods prop to allow for name lookups.
   washMethods: WashMethodDefinition[];
 }
 
@@ -42,10 +38,8 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
   orderDetailsFromAI,
   customer: customerFromAI, 
   availableServices,
-  // FIX: Renamed for clarity.
   addUser: addUserToContext, 
   targetStoreOwnerId, 
-  // FIX: Destructure new washMethods prop.
   washMethods,
 }) => {
   const { users: globalUsers, storeProfiles, findPromotionByCode, addNotification } = useData(); 
@@ -80,7 +74,6 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
           return {
             id: uuidv4(),
             serviceNameKey: matchingService?.name || aiItem.serviceName,
-            // FIX: Replaced deprecated washMethod with washMethodId.
             selectedWashMethodId: matchingService?.washMethodId || '',
             quantity: aiItem.quantity,
             notes: aiItem.notes,
@@ -109,7 +102,6 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
     let currentTotal = 0;
     const errors: string[] = [];
     editableItems.forEach(item => {
-      // FIX: Changed check from washMethod to washMethodId.
       const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
       if (service) {
         currentTotal += Math.max(service.price * item.quantity, service.minPrice || 0);
@@ -147,7 +139,6 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
         const updated = { ...item, [field]: value };
         if (field === 'serviceNameKey') {
           const servicesWithThisName = availableServices.filter(s => s.name === value);
-          // FIX: Updated to use washMethodId.
           updated.selectedWashMethodId = servicesWithThisName[0]?.washMethodId || '';
         }
         if (field === 'quantity') {
@@ -165,7 +156,6 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
     setEditableItems(prev => [...prev, {
       id: uuidv4(),
       serviceNameKey: defaultService?.name || '',
-      // FIX: Updated to use washMethodId.
       selectedWashMethodId: defaultService?.washMethodId || '',
       quantity: 1,
       notes: ''
@@ -184,7 +174,6 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
     const promotion = findPromotionByCode(voucherCode.trim(), targetStoreOwnerId, 'online');
     
     if (!promotion) { setPromotionError("Mã khuyến mãi không hợp lệ hoặc không áp dụng cho cửa hàng này."); return; }
-    // FIX: Replaced deprecated `promotion.isActive` with `promotion.status !== 'active'` to check promotion status.
     if (promotion.status !== 'active') { setPromotionError("Mã khuyến mãi đã hết hiệu lực."); return; }
     if (promotion.startDate && new Date(promotion.startDate) > new Date()) { setPromotionError("Mã chưa đến ngày áp dụng."); return; }
     if (promotion.endDate && new Date(promotion.endDate) < new Date()) { setPromotionError("Mã đã hết hạn."); return; }
@@ -196,7 +185,6 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
     }
     if (promotion.applicableServiceIds && promotion.applicableServiceIds.length > 0) {
         const hasApplicableService = editableItems.some(item => {
-            // FIX: Updated to use washMethodId for finding the service.
             const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
             return service && promotion.applicableServiceIds!.includes(service.id);
         });
@@ -205,14 +193,11 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
             return;
         }
     }
-    // FIX: Changed applicableWashMethods to applicableWashMethodIds.
     if (promotion.applicableWashMethodIds && promotion.applicableWashMethodIds.length > 0) {
         const hasApplicableWashMethod = editableItems.some(item => 
-            // FIX: Changed applicableWashMethods to applicableWashMethodIds.
             promotion.applicableWashMethodIds!.includes(item.selectedWashMethodId)
         );
         if (!hasApplicableWashMethod) {
-            // FIX: Changed applicableWashMethods to applicableWashMethodIds.
             setPromotionError("Mã khuyến mãi này không áp dụng cho phương pháp giặt nào trong đơn hàng của bạn.");
             return;
         }
@@ -277,9 +262,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
       return;
     }
 
-    // FIX: Construct OrderItem with selectedWashMethodId instead of selectedWashMethod.
     const itemsForNewOrder: OrderItem[] = editableItems.map(item => {
-      // FIX: Find service using washMethodId.
       const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId)!; // Already validated
       return {
           serviceItem: service,
@@ -313,7 +296,6 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
   if (!isOpen) return null;
 
   const renderItemRow = (item: EditableOrderItem) => {
-    // FIX: Updated to use washMethodId and get wash method name from the new prop.
     const washMethodsForService = availableServices
       .filter(s => s.name === item.serviceNameKey)
       .map(s => {

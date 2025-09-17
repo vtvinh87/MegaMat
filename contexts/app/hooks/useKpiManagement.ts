@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { KPI, KpiPeriodType, Order, StaffRating, Tip, User, UserRole, OrderStatus } from '../../../types';
 
@@ -110,7 +111,6 @@ export const useKpiManagement = ({
       const newKpi: KPI = {
         id: kpiId,
         userId: user.id,
-        // FIX: Added missing `phone` property to the user snapshot object.
         user: {id: user.id, name: user.name, role: user.role, username: user.username, phone: user.phone}, // Add user snapshot for display
         periodType,
         periodDisplay,

@@ -1,3 +1,4 @@
+
 import { useMemo } from 'react';
 import { User, UserRole, Order, InventoryItem, MaterialOrder, VariableCost, FixedCostItem, Notification, KPI, Promotion, WashMethodDefinition, InventoryAdjustmentRequest } from '../../../types';
 
@@ -44,7 +45,7 @@ export const useDataFiltering = ({
         fixedCosts: [], 
         notifications: allNotificationsData.filter(n => !n.userId && !n.ownerId), 
         kpis: [], 
-        promotions: promotionsData, // FIX: Allow public homepage to display active promotions
+        promotions: promotionsData,
         washMethods: [],
       };
     }

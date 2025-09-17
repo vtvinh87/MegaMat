@@ -41,10 +41,77 @@ const UserManagementPage: React.FC = () => {
   const toggleExpandNode = (userId: string) => {
     setExpandedNodes(prev => ({ ...prev, [userId]: !prev[userId] }));
   };
+
+  const canCurrentUserManageRole = (targetRole?: UserRole, contextUser?: Partial<User> | null): boolean => {
+    if (!currentUser) return false;
+    const userBeingEdited = contextUser || editingUser;
+
+    if (currentUser.role === UserRole.CHAIRMAN) {
+        return targetRole === UserRole.OWNER || targetRole === UserRole.MANAGER || targetRole === UserRole.STAFF;
+    }
+    if (currentUser.role === UserRole.OWNER) {
+        if (targetRole === UserRole.OWNER || targetRole === UserRole.CHAIRMAN) return false;
+        return targetRole === UserRole.MANAGER || targetRole === UserRole.STAFF;
+    }
+    if (currentUser.role === UserRole.MANAGER) {
+        if (targetRole !== UserRole.STAFF) return false;
+        return targetRole === UserRole.STAFF;
+    }
+    return false;
+  };
+
+  // FIX: Moved openModal definition before its use in useEffect
+  const openModal = (mode: 'add' | 'edit', user: Partial<User> | null = null, managerForNewUserId?: string) => {
+    setModalMode(mode);
+    setFormError(null);
+    let effectiveManagerId: string | undefined = managerForNewUserId;
+    let defaultRoleForAdd: UserRole = UserRole.STAFF; // A safe default
+
+    if (mode === 'add') {
+      const manager = managerForNewUserId ? users.find(u => u.id === managerForNewUserId) : currentUser;
+      
+      if (manager?.role === UserRole.CHAIRMAN) {
+        defaultRoleForAdd = UserRole.OWNER;
+        effectiveManagerId = manager.id; // An Owner is managed by the Chairman
+      } else if (manager?.role === UserRole.OWNER) {
+        defaultRoleForAdd = UserRole.MANAGER; // An Owner can add a Manager or Staff. Default to Manager.
+        effectiveManagerId = manager.id;
+      } else if (manager?.role === UserRole.MANAGER) {
+        defaultRoleForAdd = UserRole.STAFF; // A Manager can only add Staff.
+        effectiveManagerId = manager.id;
+      }
+      
+      if (!canCurrentUserManageRole(defaultRoleForAdd)) {
+          addNotification({message: "Bạn không có quyền thêm người dùng với vai trò này.", type: "error"});
+          return;
+      }
+      setManagingUserId(effectiveManagerId || null);
+      setEditingUser({ 
+          name: '', username: '', password: '', passwordConfirmation: '', role: defaultRoleForAdd, phone: '', managedBy: effectiveManagerId || undefined,
+          storeName: defaultRoleForAdd === UserRole.OWNER ? '' : undefined,
+          kpiTargets: {}, // Initialize KPI targets
+      });
+  
+    } else if (user) { // This is 'edit' mode
+        setManagingUserId(user.managedBy || null); 
+        if (!canCurrentUserManageRole(user.role, user) && !(currentUser?.id === user.id && user.role === UserRole.CHAIRMAN && users.filter(u=>u.role === UserRole.CHAIRMAN).length <=1)) {
+            addNotification({message: "Bạn không có quyền sửa người dùng này.", type: "error"});
+            return;
+        }
+        setEditingUser({ 
+            ...user, 
+            password: '', 
+            passwordConfirmation: '',
+            kpiTargets: user.kpiTargets ? { ...user.kpiTargets } : {}, // Deep copy
+        });
+    }
+    setIsModalOpen(true);
+  };
   
   useEffect(() => {
+    // FIX: Corrected call to openModal with appropriate arguments. The third argument is managerId, which is null/undefined when adding an Owner.
     if (location.state?.action === 'addOwnerFromChairmanDashboard' && currentUser?.role === UserRole.CHAIRMAN) {
-      openModal('add', null, null); 
+      openModal('add', null, currentUser.id); 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, currentUser]);
@@ -112,25 +179,8 @@ const UserManagementPage: React.FC = () => {
   }, [searchTerm, internalUsers, findUsersByManagerId]);
 
 
-  const canCurrentUserManageRole = (targetRole?: UserRole, contextUser?: Partial<User> | null): boolean => {
-    if (!currentUser) return false;
-    const userBeingEdited = contextUser || editingUser;
-
-    if (currentUser.role === UserRole.CHAIRMAN) {
-        return targetRole === UserRole.OWNER || targetRole === UserRole.MANAGER || targetRole === UserRole.STAFF;
-    }
-    if (currentUser.role === UserRole.OWNER) {
-        if (targetRole === UserRole.OWNER || targetRole === UserRole.CHAIRMAN) return false;
-        return targetRole === UserRole.MANAGER || targetRole === UserRole.STAFF;
-    }
-    if (currentUser.role === UserRole.MANAGER) {
-        if (targetRole !== UserRole.STAFF) return false;
-        return targetRole === UserRole.STAFF;
-    }
-    return false;
-  };
-
-  const getRoleOptionsForCurrentUser = (managerForNewUserId?: string) => {
+  // FIX: Rewrote the entire getRoleOptionsForCurrentUser function to be a pure function that returns options without side effects.
+  const getRoleOptionsForCurrentUser = (managerIdForNewUser?: string | null): { value: UserRole; label: string }[] => {
     const baseOptions = [
       { value: UserRole.STAFF, label: 'Nhân viên' },
       { value: UserRole.MANAGER, label: 'Quản lý' },
@@ -140,6 +190,7 @@ const UserManagementPage: React.FC = () => {
 
     if (!currentUser) return [];
     
+    // Logic for editing a user
     if (modalMode === 'edit' && editingUser) {
         if (editingUser.id === currentUser.id) { 
             if (currentUser.role === UserRole.CHAIRMAN && users.filter(u=>u.role === UserRole.CHAIRMAN).length <=1) return baseOptions.filter(opt => opt.value === UserRole.CHAIRMAN); 
@@ -151,84 +202,23 @@ const UserManagementPage: React.FC = () => {
         if (currentUser.role === UserRole.MANAGER) return baseOptions.filter(opt => opt.value === UserRole.STAFF);
     }
 
+    // Logic for adding a new user
     if (modalMode === 'add') {
-        const manager = managerForNewUserId ? users.find(u => u.id === managerForNewUserId) : null;
-        if (currentUser.role === UserRole.CHAIRMAN) {
-            if (!manager) return baseOptions.filter(opt => opt.value === UserRole.OWNER); 
-            if (manager.role === UserRole.OWNER) return baseOptions.filter(opt => opt.value === UserRole.MANAGER || opt.value === UserRole.STAFF);
-            if (manager.role === UserRole.MANAGER) return baseOptions.filter(opt => opt.value === UserRole.STAFF);
+        const manager = managerIdForNewUser ? users.find(u => u.id === managerIdForNewUser) : currentUser;
+        if (!manager) return [];
+
+        if (manager.role === UserRole.CHAIRMAN) {
+            return baseOptions.filter(o => o.value === UserRole.OWNER);
         }
-        if (currentUser.role === UserRole.OWNER) {
-            if (!manager || manager.id === currentUser.id) return baseOptions.filter(opt => opt.value === UserRole.MANAGER || opt.value === UserRole.STAFF); 
-             if (manager.role === UserRole.MANAGER && manager.managedBy === currentUser.id) return baseOptions.filter(opt => opt.value === UserRole.STAFF); 
+        if (manager.role === UserRole.OWNER) {
+            return baseOptions.filter(o => o.value === UserRole.MANAGER || o.value === UserRole.STAFF);
         }
-        if (currentUser.role === UserRole.MANAGER) {
-             if (!manager || manager.id === currentUser.id) return baseOptions.filter(opt => opt.value === UserRole.STAFF); 
+        if (manager.role === UserRole.MANAGER) {
+            return baseOptions.filter(o => o.value === UserRole.STAFF);
         }
     }
-    return [];
-  };
-
-  const openModal = (mode: 'add' | 'edit', user: User | null = null, managerIdFromTreeClick: string | null = null) => {
-    setModalMode(mode);
-    setFormError(null);
     
-    let effectiveManagerId = managerIdFromTreeClick;
-    let defaultRoleForAdd = UserRole.STAFF;
-
-    if (mode === 'add') {
-        setManagingUserId(effectiveManagerId); 
-
-        if (currentUser?.role === UserRole.CHAIRMAN) {
-            if (!effectiveManagerId) defaultRoleForAdd = UserRole.OWNER; 
-            else {
-                const manager = users.find(u => u.id === effectiveManagerId);
-                if (manager?.role === UserRole.OWNER) defaultRoleForAdd = UserRole.MANAGER;
-            }
-        } else if (currentUser?.role === UserRole.OWNER) {
-            if (!effectiveManagerId || effectiveManagerId === currentUser.id) { 
-                 defaultRoleForAdd = UserRole.MANAGER;
-                 effectiveManagerId = currentUser.id; 
-                 setManagingUserId(currentUser.id);
-            } else { 
-                addNotification({message: "Chủ cửa hàng chỉ có thể thêm Nhân viên/Quản lý trực tiếp dưới quyền mình.", type:"error"});
-                return;
-            }
-        } else if (currentUser?.role === UserRole.MANAGER) {
-             if (!effectiveManagerId || effectiveManagerId === currentUser.id) { 
-                defaultRoleForAdd = UserRole.STAFF;
-                effectiveManagerId = currentUser.id; 
-                setManagingUserId(currentUser.id);
-            } else {
-                addNotification({message: "Quản lý chỉ có thể thêm Nhân viên trực tiếp dưới quyền mình.", type:"error"});
-                return;
-            }
-        }
-        
-        if (!canCurrentUserManageRole(defaultRoleForAdd)) {
-            addNotification({message: "Bạn không có quyền thêm người dùng với vai trò này.", type: "error"});
-            return;
-        }
-        setEditingUser({ 
-            name: '', username: '', password: '', passwordConfirmation: '', role: defaultRoleForAdd, phone: '', managedBy: effectiveManagerId || undefined,
-            storeName: defaultRoleForAdd === UserRole.OWNER ? '' : undefined,
-            kpiTargets: {}, // Initialize KPI targets
-        });
-    
-    } else if (user) { 
-        setManagingUserId(user.managedBy || null); 
-        if (!canCurrentUserManageRole(user.role, user) && !(currentUser?.id === user.id && user.role === UserRole.CHAIRMAN && users.filter(u=>u.role === UserRole.CHAIRMAN).length <=1)) {
-            addNotification({message: "Bạn không có quyền sửa người dùng này.", type: "error"});
-            return;
-        }
-        setEditingUser({ 
-            ...user, 
-            password: '', 
-            passwordConfirmation: '',
-            kpiTargets: user.kpiTargets ? { ...user.kpiTargets } : {}, // Deep copy
-        });
-    }
-    setIsModalOpen(true);
+    return []; // Return empty if no match
   };
 
   const closeModal = () => {
@@ -285,9 +275,15 @@ const UserManagementPage: React.FC = () => {
       return;
     }
 
-    if (password && password !== passwordConfirmation) {
-      setFormError('Mật khẩu và xác nhận mật khẩu không khớp.');
-      return;
+    if (password) {
+      if (password.length < 6) {
+        setFormError('Mật khẩu phải có ít nhất 6 ký tự.');
+        return;
+      }
+      if (password !== passwordConfirmation) {
+        setFormError('Mật khẩu và xác nhận mật khẩu không khớp.');
+        return;
+      }
     }
     
     const managerUser = managedBy ? users.find(u => u.id === managedBy) : null;
@@ -544,7 +540,7 @@ const UserManagementPage: React.FC = () => {
               <Select
                 label="Vai trò*"
                 name="role"
-                options={getRoleOptionsForCurrentUser(managingUserId || undefined)}
+                options={getRoleOptionsForCurrentUser(managingUserId)}
                 value={editingUser.role || ''}
                 onChange={handleInputChange}
                 required

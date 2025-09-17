@@ -1,18 +1,11 @@
 
-
-
-
-
-
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
 import { CustomerHomePage } from './pages/public/CustomerHomePage'; // Changed to named import
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import OrderListPage from './pages/admin/OrderListPage';
-// FIX: Changed to named import as the component is now a named export.
 import { OrderCreatePage } from './pages/admin/OrderCreatePage';
-// FIX: Changed to named import as the component is now a named export.
 import { OrderDetailPage } from './pages/admin/OrderDetailPage';
 import CustomerManagementPage from './pages/admin/CustomerManagementPage';
 import ServiceManagementPage from './pages/admin/ServiceManagementPage';

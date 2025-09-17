@@ -1,7 +1,5 @@
 
-
 import { useCallback } from 'react';
-// FIX: Removed deprecated Customer type.
 import { Order, OrderStatus, UserRole, User, StoreProfile, Promotion, InventoryItem, PaymentStatus } from '../../../types';
 
 type Props = {
@@ -10,7 +8,6 @@ type Props = {
   setAllOrdersData: React.Dispatch<React.SetStateAction<Order[]>>;
   addNotification: (notification: any) => void;
   storeProfilesData: StoreProfile[];
-  // FIX: Replaced customersData with usersData to reflect the unified User model.
   usersData: User[];
   setUsersData: React.Dispatch<React.SetStateAction<User[]>>;
   promotionsData: Promotion[];
@@ -25,7 +22,6 @@ export const useOrderManagement = ({
   setAllOrdersData,
   addNotification,
   storeProfilesData,
-  // FIX: Using usersData and setUsersData.
   usersData,
   setUsersData,
   promotionsData,
@@ -42,7 +38,6 @@ export const useOrderManagement = ({
 
     // Loyalty Points Redemption Logic
     if (newOrderWithPayment.loyaltyPointsRedeemed && newOrderWithPayment.loyaltyPointsRedeemed > 0) {
-      // FIX: Update the main usersData array instead of the deprecated customersData.
       setUsersData(prevUsers => prevUsers.map(u => {
         if (u.id === newOrderWithPayment.customer.id) {
           const newPoints = Math.max(0, (u.loyaltyPoints || 0) - (newOrderWithPayment.loyaltyPointsRedeemed || 0));
@@ -133,7 +128,6 @@ export const useOrderManagement = ({
       if (storeProfile?.loyaltySettings?.enabled && storeProfile.loyaltySettings.accrualRate > 0) {
         const pointsToAdd = Math.floor(updatedOrder.totalAmount / storeProfile.loyaltySettings.accrualRate);
         if (pointsToAdd > 0) {
-          // FIX: Update the main usersData array instead of the deprecated customersData.
           setUsersData(prevUsers => prevUsers.map(u => {
             if (u.id === updatedOrder.customer.id) {
               const newPoints = (u.loyaltyPoints || 0) + pointsToAdd;

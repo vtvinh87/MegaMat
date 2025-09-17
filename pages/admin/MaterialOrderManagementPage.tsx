@@ -1,6 +1,6 @@
+
 import React, { useState, useMemo, ChangeEvent, useEffect, FormEvent } from 'react';
 import { Link } from 'react-router-dom'; // Import Link
-// FIX: Replaced useAppContext with useData and useAuth
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { MaterialOrder, UserRole, MaterialItemDefinition, User } from '../../types';
@@ -267,7 +267,6 @@ const CreateMaterialOrderModal: React.FC<CreateMaterialOrderModalProps> = ({ isO
 
 
 const MaterialOrderManagementPage: React.FC = () => {
-  // FIX: Replaced useAppContext with useData and useAuth
   const { 
     materialOrders, 
     approveMaterialOrder, 

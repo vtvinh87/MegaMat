@@ -1,5 +1,5 @@
+
 import React, { useEffect, useState } from 'react';
-// FIX: Imported StarIcon to handle the 'rating_prompt' toast type.
 import { CheckCircleIcon, XCircleIcon, AlertTriangleIcon, InfoIcon, XIcon, StarIcon } from 'lucide-react';
 import { ToastMessage } from '../../contexts/ToastContext';
 
@@ -8,7 +8,6 @@ interface ToastProps {
   onDismiss: () => void;
 }
 
-// FIX: Added 'rating_prompt' icon definition.
 const ICONS: Record<ToastMessage['type'], React.ReactNode> = {
   success: <CheckCircleIcon className="text-status-success" size={20} />,
   error: <XCircleIcon className="text-status-danger" size={20} />,
@@ -17,7 +16,6 @@ const ICONS: Record<ToastMessage['type'], React.ReactNode> = {
   rating_prompt: <StarIcon className="text-yellow-500" size={20} />,
 };
 
-// FIX: Added 'rating_prompt' background and border color definition.
 const BG_COLORS: Record<ToastMessage['type'], string> = {
     success: 'bg-status-success-bg border-status-success',
     error: 'bg-status-danger-bg border-status-danger',

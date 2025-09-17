@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useCallback, useEffect } from 'react';
 import { AppData, Notification, Theme, User, UserRole } from '../types';
 import { useAppState } from './app/state';
@@ -13,7 +14,6 @@ import { useUserManagement } from './app/hooks/useUserManagement';
 import { useNotificationLogic } from './app/hooks/useNotificationLogic';
 import { useDataFiltering } from './app/hooks/useDataFiltering';
 import { useOrderManagement } from './app/hooks/useOrderManagement';
-// FIX: Removed import for useCustomerManagement as it's deprecated.
 import { useServiceManagement } from './app/hooks/useServiceManagement';
 import { useSupplierManagement } from './app/hooks/useSupplierManagement';
 import { useInventoryManagement } from './app/hooks/useInventoryManagement';
@@ -39,13 +39,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   // --- Core Application Data State & Persistence ---
-  // FIX: appState now correctly returns all setters needed by seedInitialData
   const appState = useAppState();
 
   // --- Data Seeding on Initial Load ---
   useEffect(() => {
     const doSeed = async () => {
-      // FIX: Pass the complete appState with all setters to seedInitialData
       await seedInitialData(appState);
     };
     doSeed();
@@ -94,7 +92,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAllOrdersData: appState.setAllOrdersData,
       addNotification: notificationLogic.addNotification,
       storeProfilesData: appState.storeProfilesData,
-      // FIX: Pass usersData instead of deprecated customersData
       usersData: appState.usersData,
       setUsersData: appState.setUsersData,
       promotionsData: appState.promotionsData,
@@ -102,8 +99,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       allInventoryData: appState.allInventoryData,
       setAllInventoryData: appState.setAllInventoryData,
   });
-
-  // FIX: Removed deprecated useCustomerManagement hook
   
   const serviceManagement = useServiceManagement({
       servicesData: appState.servicesData,
@@ -207,7 +202,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   
   // --- Auth Logic ---
-  // FIX: Changed login function to return User object on success and null on failure for better type safety and control flow.
   const login = useCallback(async (username: string, password?: string): Promise<User | null> => {
     const user = appState.usersData.find(u => u.username.toLowerCase() === username.toLowerCase() || u.phone === username);
     if (user) {
@@ -244,7 +238,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     // Raw Data State 
     users: appState.usersData,
-    // FIX: Removed deprecated customers data
     services: appState.servicesData,
     suppliers: appState.suppliersData,
     materialItemDefinitions: appState.materialItemDefinitionsData,
@@ -268,7 +261,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ...userMgmtWithNotifications,
     ...notificationLogic,
     ...orderManagement,
-    // FIX: Removed deprecated customerManagement hook
     ...serviceManagement,
     ...supplierManagement,
     ...inventoryManagement,

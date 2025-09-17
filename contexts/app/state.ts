@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { 
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
@@ -23,8 +24,6 @@ const useDebouncedSave = <T,>(key: string, value: T, delay: number = 1000) => {
 
 export const useAppState = () => {
   const [usersData, setUsersData] = useState<User[]>(() => loadDataFromLocalStorage<User[]>(LsKeys.USERS_KEY, []));
-  // FIX: Re-added customersData state as it's still used by some hooks during the refactor.
-  const [customersData, setCustomersData] = useState<User[]>(() => loadDataFromLocalStorage<User[]>(LsKeys.USERS_KEY, []).filter(u => u.role === 'Khách hàng'));
   const [servicesData, setServicesData] = useState<ServiceItem[]>(() => loadDataFromLocalStorage<ServiceItem[]>(LsKeys.SERVICES_KEY, []));
   const [allOrdersData, setAllOrdersData] = useState<Order[]>(() => loadDataFromLocalStorage<Order[]>(LsKeys.ORDERS_KEY, [], 'orders'));
   const [suppliersData, setSuppliersData] = useState<Supplier[]>(() => loadDataFromLocalStorage<Supplier[]>(LsKeys.SUPPLIERS_KEY, []));
@@ -77,8 +76,6 @@ export const useAppState = () => {
 
   return {
     usersData, setUsersData,
-    // FIX: Expose customersData and its setter.
-    customersData, setCustomersData,
     servicesData, setServicesData,
     allOrdersData, setAllOrdersData,
     suppliersData, setSuppliersData,

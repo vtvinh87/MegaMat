@@ -1,6 +1,6 @@
+
 import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-// FIX: Replaced useAppContext with useData and useAuth
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Order, OrderStatus, ScanHistoryEntry, UserRole } from '../../types';
@@ -9,7 +9,6 @@ import { Button } from '../../components/ui/Button';
 import { ArrowLeftIcon, Package, User, CalendarDays, Trash2Icon, MessageSquareIcon, UserCogIcon, AlertTriangle } from 'lucide-react';
 
 const DeletedOrdersHistoryPage: React.FC = () => {
-  // FIX: Replaced useAppContext with useData and useAuth
   const { orders } = useData();
   const { currentUser } = useAuth();
   const navigate = useNavigate();

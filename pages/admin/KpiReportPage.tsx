@@ -1,6 +1,6 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from 'recharts';
-// FIX: Replaced useAppContext with useData and useAuth
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { User, KPI, KpiPeriodType, UserRole } from '../../types';
@@ -29,7 +29,6 @@ const KpiValueWithTarget: React.FC<{
 };
 
 const KpiReportPage: React.FC = () => {
-  // FIX: Replaced useAppContext with useData and useAuth
   const { users, getKPIs, calculateAndStoreKPIsForAllStaff, getOwnerIdForUser } = useData();
   const { currentUser } = useAuth();
   

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useData } from '../../contexts/DataContext';
 import { Order, User, ServiceRating, StaffRating } from '../../types';
@@ -12,7 +11,6 @@ interface RatingTipModalProps {
   isOpen: boolean;
   onClose: () => void;
   orderId: string;
-  // FIX: Renamed prop to customerUserId to match usage.
   customerUserId: string;
 }
 

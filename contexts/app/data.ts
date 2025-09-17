@@ -1,4 +1,4 @@
-// FIX: Removed deprecated Customer type. User is now used for all individuals.
+
 import { UserRole, User, StoreProfile, FixedCostItem, MaterialItemDefinition, VariableCost, VariableCostCategory, Order, ServiceItem, OrderItem, ScanHistoryEntry, InventoryItem, MaterialOrder, Notification, OrderStatus, Promotion, PaymentStatus, PaymentMethod, Supplier, FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreUpdateHistoryEntry, WashMethodDefinition, InventoryAdjustmentRequest } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { MOCK_SERVICES } from '../../constants';
@@ -123,7 +123,6 @@ const createDemoVariableCosts = (ownerId: string): VariableCost[] => {
   return costs.sort((a,b) => b.date.getTime() - a.date.getTime()); 
 };
 
-// FIX: Changed `customers` parameter type from Customer[] to User[].
 const createDemoOrders = (customers: User[], services: ServiceItem[], users: User[], ownerId: string): Order[] => {
     const demoOrders: Omit<Order, 'paymentStatus' | 'paymentMethod'>[] = [];
   const endDate = new Date();
@@ -277,7 +276,6 @@ const createInitialWashMethods = (ownerId: string): WashMethodDefinition[] => [
 
 type AppStateSetters = {
     setUsersData: (data: User[]) => void;
-    setCustomersData: (data: User[]) => void;
     setServicesData: (data: ServiceItem[]) => void;
     setAllOrdersData: (data: Order[]) => void;
     setAllInventoryData: (data: InventoryItem[]) => void;
@@ -323,9 +321,6 @@ export const seedInitialData = async (setters: AppStateSetters) => {
 
     // 3. Generate and seed dynamic data for each store owner
     const customersForOrders = hashedUsers.filter(u => u.role === UserRole.CUSTOMER);
-    if(setters.setCustomersData) {
-        setters.setCustomersData(customersForOrders);
-    }
     
 
     const storeOwners = hashedUsers.filter(u => u.role === UserRole.OWNER);

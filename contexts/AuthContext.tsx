@@ -1,9 +1,9 @@
+
 import { createContext, useContext } from 'react';
 import { User } from '../types';
 
 export interface AuthContextType {
   currentUser: User | null;
-  // FIX: Changed login return type to User | null for better type safety and to return user data on success.
   login: (username: string, password?: string) => Promise<User | null>;
   logout: () => void;
 }

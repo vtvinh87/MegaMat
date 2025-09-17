@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useCallback, useContext } from 'react';
 import { Toast } from '../components/ui/Toast';
 import { v4 as uuidv4 } from 'uuid';
@@ -5,7 +6,6 @@ import { v4 as uuidv4 } from 'uuid';
 export type ToastMessage = {
   id: string;
   message: string;
-  // FIX: Added 'rating_prompt' to allow for rating-related toasts.
   type: 'info' | 'success' | 'warning' | 'error' | 'rating_prompt';
 };
 

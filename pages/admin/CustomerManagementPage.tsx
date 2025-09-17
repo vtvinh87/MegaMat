@@ -46,14 +46,15 @@ const CustomerManagementPage: React.FC = () => {
       return;
     }
     
-    if (currentUser.password && currentUser.password !== currentUser.passwordConfirmation) {
-      alert('Mật khẩu và xác nhận mật khẩu không khớp.');
-      return;
-    }
-
-    if (currentUser.password && currentUser.password.length < 6) {
-      alert('Mật khẩu phải có ít nhất 6 ký tự.');
-      return;
+    if (currentUser.password) {
+      if (currentUser.password.length < 6) {
+        alert('Mật khẩu phải có ít nhất 6 ký tự.');
+        return;
+      }
+      if (currentUser.password !== currentUser.passwordConfirmation) {
+        alert('Mật khẩu và xác nhận mật khẩu không khớp.');
+        return;
+      }
     }
     
     if (modalMode === 'add') {

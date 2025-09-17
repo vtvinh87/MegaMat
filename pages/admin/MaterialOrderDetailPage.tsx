@@ -1,6 +1,6 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-// FIX: Replaced useAppContext with useData
 import { useData } from '../../contexts/DataContext';
 import { MaterialOrder, MaterialOrderItemDetail } from '../../types';
 import { Card } from '../../components/ui/Card';
@@ -10,7 +10,6 @@ import { ArrowLeftIcon, ShoppingCart, CalendarDays, UserCircle, CheckCircle, XCi
 const MaterialOrderDetailPage: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  // FIX: Replaced useAppContext with useData
   const { materialOrders, addNotification } = useData();
   const [order, setOrder] = useState<MaterialOrder | null>(null);
 

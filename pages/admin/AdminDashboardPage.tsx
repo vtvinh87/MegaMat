@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect, useCallback } from 'react'; 
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -7,7 +8,6 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
-// FIX: Added MessageCircleIcon to imports
 import { PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, AlertTriangleIcon, ArrowRightIcon, Settings2Icon, CheckCircle, InfoIcon, ActivityIcon, BriefcaseIcon, PlusCircleIcon, BuildingIcon, LineChartIcon, PieChartIcon, SparklesIcon, MessageSquareIcon, MessageCircleIcon, RefreshCwIcon, MegaphoneIcon, ShieldAlertIcon, XCircleIcon, XIcon } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
 import { GoogleGenAI } from '@google/genai';
@@ -97,8 +97,9 @@ const DashboardCharts = () => {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              {/* FIX: The 'percent' property from the recharts Pie component can be undefined. Using a ternary operator to default to 0 handles this case safely and prevents a TypeScript error. */}
-              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent ? percent : 0) * 100).toFixed(0)}%`}>
+              {/* FIX: The user-provided line number is likely incorrect. The `percent` prop from recharts can be null, undefined, or NaN. */}
+              {/* Using `|| 0` is a more robust way to ensure a number for the arithmetic operation. */}
+              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}>
                 {orderStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name as keyof typeof PIE_COLORS]} />
                 ))}
@@ -201,7 +202,6 @@ const AdminDashboardPage: React.FC = () => {
   // --- ALL HOOKS CALLED AT THE TOP LEVEL ---
   const { currentUser } = useAuth();
   const { 
-    // FIX: Removed `customers` from destructuring, using `users` instead.
     orders, suppliers, inventory, users, notifications, findUserById,
     getOwnerIdForUser, materialOrders, findStoreProfileByOwnerId, serviceRatings, staffRatings,
     promotions, acknowledgedSystemPromos, acknowledgedCancelRequests, acknowledgeSystemPromo, acknowledgeCancelRequest,
@@ -449,7 +449,6 @@ const AdminDashboardPage: React.FC = () => {
   }
 
   // --- View for Owner, Manager, Staff ---
-  // FIX: Derived customers from users array.
   const customers = useMemo(() => users.filter(u => u.role === UserRole.CUSTOMER), [users]);
   const waitingForConfirmationCount = orders.filter(o => o.status === OrderStatus.WAITING_FOR_CONFIRMATION).length;
   const pendingOrdersCount = orders.filter(o => o.status === OrderStatus.PENDING).length;

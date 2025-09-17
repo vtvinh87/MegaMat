@@ -118,6 +118,10 @@ const StoreManagementPage: React.FC = () => {
       setFormError('Tên cửa hàng, Tên chủ sở hữu, Tên đăng nhập và Mật khẩu là bắt buộc.');
       return;
     }
+    if (ownerPassword.length < 6) {
+      setFormError('Mật khẩu phải có ít nhất 6 ký tự.');
+      return;
+    }
     if (ownerPassword !== ownerPasswordConfirm) {
       setFormError('Mật khẩu và xác nhận mật khẩu không khớp.');
       return;

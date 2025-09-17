@@ -693,6 +693,8 @@ const PromotionManagementPage: React.FC = () => {
 
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
+    setFormError(null); // Clear previous errors
+
     if (!currentPromotion || !currentPromotion.name?.trim() || !currentPromotion.code?.trim() || !currentPromotion.discountType || currentPromotion.discountValue === undefined) {
       setFormError('Tên, Mã, Loại và Giá trị giảm giá là bắt buộc.');
       return;
@@ -701,6 +703,44 @@ const PromotionManagementPage: React.FC = () => {
         setFormError('Mã khuyến mãi này đã tồn tại.');
         return;
     }
+    
+    // --- NEW VALIDATIONS ---
+    const discountValueNum = Number(currentPromotion.discountValue);
+    if (currentPromotion.discountType === 'percentage' && (discountValueNum <= 0 || discountValueNum > 100)) {
+        setFormError('Giá trị giảm giá (%) phải nằm trong khoảng (0, 100].');
+        return;
+    }
+    if (currentPromotion.discountType === 'fixed_amount' && discountValueNum <= 0) {
+        setFormError('Giá trị giảm giá (VNĐ) phải lớn hơn 0.');
+        return;
+    }
+
+    if (currentPromotion.maxDiscountAmount && Number(currentPromotion.maxDiscountAmount) < 0) {
+        setFormError('Giảm giá tối đa không thể là số âm.');
+        return;
+    }
+
+    if (currentPromotion.minOrderAmount && Number(currentPromotion.minOrderAmount) < 0) {
+        setFormError('Đơn hàng tối thiểu không thể là số âm.');
+        return;
+    }
+    
+    if (currentPromotion.usageLimit && Number(currentPromotion.usageLimit) < 0) {
+        setFormError('Giới hạn lượt dùng không thể là số âm.');
+        return;
+    }
+    
+    if (currentPromotion.usageLimitPerCustomer && Number(currentPromotion.usageLimitPerCustomer) < 0) {
+        setFormError('Lượt dùng / Khách hàng không thể là số âm.');
+        return;
+    }
+
+    if (currentPromotion.startDate && currentPromotion.endDate && new Date(currentPromotion.endDate) < new Date(currentPromotion.startDate)) {
+        setFormError('Ngày kết thúc không được sớm hơn ngày bắt đầu.');
+        return;
+    }
+    // --- END NEW VALIDATIONS ---
+
     const isSystemWide = isChairman && currentPromotion.isSystemWide;
     
     const promotionData = {
