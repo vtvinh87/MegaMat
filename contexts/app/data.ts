@@ -1,5 +1,5 @@
 // FIX: Removed deprecated Customer type. User is now used for all individuals.
-import { UserRole, User, StoreProfile, FixedCostItem, MaterialItemDefinition, VariableCost, VariableCostCategory, Order, ServiceItem, OrderItem, ScanHistoryEntry, InventoryItem, MaterialOrder, Notification, OrderStatus, Promotion, PaymentStatus, PaymentMethod, Supplier, FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreUpdateHistoryEntry, WashMethodDefinition } from '../../types';
+import { UserRole, User, StoreProfile, FixedCostItem, MaterialItemDefinition, VariableCost, VariableCostCategory, Order, ServiceItem, OrderItem, ScanHistoryEntry, InventoryItem, MaterialOrder, Notification, OrderStatus, Promotion, PaymentStatus, PaymentMethod, Supplier, FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreUpdateHistoryEntry, WashMethodDefinition, InventoryAdjustmentRequest } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { MOCK_SERVICES } from '../../constants';
 import * as LsKeys from './utils';
@@ -281,6 +281,7 @@ type AppStateSetters = {
     setServicesData: (data: ServiceItem[]) => void;
     setAllOrdersData: (data: Order[]) => void;
     setAllInventoryData: (data: InventoryItem[]) => void;
+    setInventoryAdjustmentRequestsData: (data: InventoryAdjustmentRequest[]) => void;
     setAllMaterialOrdersData: (data: MaterialOrder[]) => void;
     setMaterialItemDefinitionsData: (data: MaterialItemDefinition[]) => void;
     setAllNotificationsData: (data: Notification[]) => void;
@@ -364,6 +365,7 @@ export const seedInitialData = async (setters: AppStateSetters) => {
     setters.setPromotionsData([]);
     setters.setFixedCostsUpdateHistoryData([]);
     setters.setStoreUpdateHistoryData([]);
+    setters.setInventoryAdjustmentRequestsData([]);
     
     // A small delay to allow react to batch state updates before logging completion
     setTimeout(() => console.log("Initial data seeding complete. State updated."), 100);

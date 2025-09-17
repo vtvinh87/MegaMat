@@ -39,6 +39,7 @@ const DATE_FIELDS: Record<string, string[]> = {
     tips: ['createdAt'],
     kpis: ['startDate', 'endDate', 'createdAt'],
     materialOrders: ['createdAt'], // Added missing
+    inventoryAdjustmentRequests: ['createdAt', 'respondedAt'],
     storeUpdateHistory: ['timestamp'],
     promotions: ['startDate', 'endDate', 'respondedAt'], // Added respondedAt for optOuts
     optOutRequests: ['respondedAt'], // Nested in promotions

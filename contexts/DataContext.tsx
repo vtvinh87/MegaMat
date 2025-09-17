@@ -1,12 +1,10 @@
-
-
 import { createContext, useContext } from 'react';
 import { 
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
     Notification, VariableCost, FixedCostItem, FixedCostUpdateHistoryEntry, 
     ServiceRating, StaffRating, Tip, KPI, StoreProfile, StoreUpdateHistoryEntry, Promotion,
     // FIX: Imported missing MaterialItemDefinition type and removed Customer
-    Theme, UserRole, VariableCostInput, KpiPeriodType, MaterialItemDefinition, WashMethodDefinition
+    Theme, UserRole, VariableCostInput, KpiPeriodType, MaterialItemDefinition, WashMethodDefinition, InventoryAdjustmentRequest
 } from '../types';
 
 // This mirrors the AppContextType but without auth fields
@@ -19,6 +17,7 @@ export interface DataContextType {
   orders: Order[];
   suppliers: Supplier[];
   inventory: InventoryItem[];
+  inventoryAdjustmentRequests: InventoryAdjustmentRequest[];
   materialOrders: MaterialOrder[];
   materialItemDefinitions: MaterialItemDefinition[];
   notifications: Notification[];
@@ -52,7 +51,11 @@ export interface DataContextType {
   addSupplier: (supplier: Supplier) => void;
   updateSupplier: (supplier: Supplier) => void;
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'ownerId'>) => void;
-  updateInventoryItem: (item: InventoryItem) => void;
+  // FIX: The type signature for `updateInventoryItem` was incorrect. It requires a `reason` string as a second argument. The signature has been updated to match the implementation in `useInventoryManagement`.
+  updateInventoryItem: (item: InventoryItem, reason: string) => void;
+  requestInventoryAdjustment: (itemId: string, requestedQuantity: number, reason: string) => void;
+  approveInventoryAdjustment: (requestId: string) => void;
+  rejectInventoryAdjustment: (requestId: string, rejectionReason: string) => void;
   // FIX: Added `& { showToast?: boolean }` to the addNotification type definition to allow passing the showToast property.
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read' | 'ownerId'> & { showToast?: boolean }) => void;
   markNotificationAsRead: (id: string) => void;

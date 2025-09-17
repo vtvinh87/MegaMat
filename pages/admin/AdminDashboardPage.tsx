@@ -97,8 +97,8 @@ const DashboardCharts = () => {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              {/* FIX: The 'percent' property from the recharts Pie component can be undefined. This can cause a type error when performing arithmetic operations. Coalescing the value to 0 ensures it's always a number. */}
-              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}>
+              {/* FIX: The 'percent' property from the recharts Pie component can be undefined or NaN. Using a ternary operator handles both cases correctly, which `??` does not for NaN. */}
+              <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent ? percent : 0) * 100).toFixed(0)}%`}>
                 {orderStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name as keyof typeof PIE_COLORS]} />
                 ))}

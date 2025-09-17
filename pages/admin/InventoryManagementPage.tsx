@@ -1,13 +1,14 @@
-
 import React, { useState, useMemo, ChangeEvent, FormEvent, useRef } from 'react';
 import { useData } from '../../contexts/DataContext';
-import { InventoryItem } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { InventoryItem, InventoryUpdateHistoryEntry, User, UserRole, InventoryAdjustmentRequest } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { PlusCircleIcon, EditIcon, SearchIcon, AlertTriangleIcon, Archive, Hash, CheckSquare, Sliders, Tag, CameraIcon } from 'lucide-react';
+import { PlusCircleIcon, EditIcon, SearchIcon, AlertTriangleIcon, Archive, Hash, CheckSquare, Sliders, Tag, CameraIcon, HistoryIcon, XCircleIcon, CheckIcon, XIcon, UserCheck, InboxIcon, ArrowRight, ClockIcon } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
+import { v4 as uuidv4 } from 'uuid';
 import { Spinner } from '../../components/ui/Spinner';
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -20,15 +21,38 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 const InventoryManagementPage: React.FC = () => {
-  const { inventory, addInventoryItem, updateInventoryItem, addNotification } = useData();
+  const { 
+    inventory, 
+    addInventoryItem, 
+    requestInventoryAdjustment, 
+    approveInventoryAdjustment,
+    rejectInventoryAdjustment,
+    inventoryAdjustmentRequests,
+    addNotification, 
+    findUserById, 
+    users 
+  } = useData();
+  const { currentUser } = useAuth();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentItem, setCurrentItem] = useState<Partial<InventoryItem> | null>(null);
+  const [currentItem, setCurrentItem] = useState<Partial<InventoryItem> & { requestedQuantity?: number } | null>(null);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [editReason, setEditReason] = useState('');
   
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
+  const [rejectionModalRequest, setRejectionModalRequest] = useState<InventoryAdjustmentRequest | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  const canApprove = currentUser && (currentUser.role === UserRole.OWNER || currentUser.role === UserRole.MANAGER);
+
+  const pendingRequests = useMemo(() => {
+    return inventoryAdjustmentRequests.filter(req => req.status === 'pending');
+  }, [inventoryAdjustmentRequests]);
 
   const filteredInventory = useMemo(() => {
     return inventory.filter(item =>
@@ -39,7 +63,12 @@ const InventoryManagementPage: React.FC = () => {
 
   const openModal = (mode: 'add' | 'edit', item: Partial<InventoryItem> | null = null) => {
     setModalMode(mode);
-    setCurrentItem(mode === 'add' ? { name: '', quantity: 0, unit: '', lowStockThreshold: 5 } : { ...item });
+    if (mode === 'add') {
+      setCurrentItem({ name: '', quantity: 0, unit: '', lowStockThreshold: 5 });
+    } else if (item) {
+      setCurrentItem({ ...item, requestedQuantity: item.quantity });
+    }
+    setEditReason('');
     setIsModalOpen(true);
     setScanError(null);
   };
@@ -51,29 +80,29 @@ const InventoryManagementPage: React.FC = () => {
 
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
-    if (!currentItem || !currentItem.name || !currentItem.unit || currentItem.quantity === undefined || currentItem.lowStockThreshold === undefined) {
-      alert('Tên, đơn vị tính, số lượng, và ngưỡng báo tồn là bắt buộc.');
+    if (!currentItem || !currentItem.name?.trim() || !currentItem.unit?.trim() || currentItem.lowStockThreshold === undefined) {
+      alert('Tên, đơn vị tính và ngưỡng báo tồn là bắt buộc.');
       return;
     }
     
     if (modalMode === 'add') {
       const newItemPayload: Omit<InventoryItem, 'id' | 'ownerId'> = {
         name: currentItem.name!,
-        quantity: Number(currentItem.quantity) || 0,
+        quantity: Number(currentItem.requestedQuantity) || 0,
         unit: currentItem.unit!,
         lowStockThreshold: Number(currentItem.lowStockThreshold) || 0,
       };
       addInventoryItem(newItemPayload);
     } else if (currentItem.id) {
-      const itemToUpdate: InventoryItem = {
-        id: currentItem.id!,
-        ownerId: currentItem.ownerId!,
-        name: currentItem.name!,
-        quantity: Number(currentItem.quantity) || 0,
-        unit: currentItem.unit!,
-        lowStockThreshold: Number(currentItem.lowStockThreshold) || 0,
-      };
-      updateInventoryItem(itemToUpdate);
+       if (!editReason.trim()) {
+        alert('Lý do yêu cầu là bắt buộc.');
+        return;
+      }
+      if (currentItem.requestedQuantity === undefined) {
+        alert('Số lượng yêu cầu không hợp lệ.');
+        return;
+      }
+      requestInventoryAdjustment(currentItem.id, Number(currentItem.requestedQuantity), editReason);
     }
     closeModal();
   };
@@ -115,7 +144,7 @@ const InventoryManagementPage: React.FC = () => {
         throw new Error(`AI did not return a valid number. Response: "${countText}"`);
       }
       
-      setCurrentItem(prev => prev ? { ...prev, quantity: count } : null);
+      setCurrentItem(prev => prev ? { ...prev, requestedQuantity: count } : null);
       addNotification({ message: `AI đã đếm được ${count} ${currentItem.unit || 'sản phẩm'}.`, type: 'success' });
 
     } catch (err) {
@@ -125,10 +154,17 @@ const InventoryManagementPage: React.FC = () => {
       addNotification({ message: `Lỗi quét AI: ${message}`, type: 'error' });
     } finally {
       setIsScanning(false);
-      // Reset file input value to allow re-uploading the same file
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  };
+
+  const handleConfirmRejection = () => {
+    if (rejectionModalRequest && rejectionReason.trim()) {
+      rejectInventoryAdjustment(rejectionModalRequest.id, rejectionReason);
+      setRejectionModalRequest(null);
+      setRejectionReason('');
     }
   };
   
@@ -143,11 +179,30 @@ const InventoryManagementPage: React.FC = () => {
 
   return (
     <>
+      {canApprove && pendingRequests.length > 0 && (
+        <Card title="Yêu cầu Điều chỉnh Tồn kho Đang chờ" icon={<InboxIcon size={20} className="text-brand-primary" />} className="mb-6 border-l-4 border-brand-primary !bg-blue-50/60">
+          <div className="space-y-3 max-h-72 overflow-y-auto">
+            {pendingRequests.map(req => (
+              <div key={req.id} className="p-3 bg-bg-surface rounded-lg border border-border-base flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex-grow">
+                  <p className="font-semibold text-text-heading">{req.inventoryItemName}</p>
+                  <p className="text-sm text-text-body">Yêu cầu bởi: <span className="font-medium">{findUserById(req.requestedByUserId)?.name || 'N/A'}</span></p>
+                  <p className="text-sm text-text-body">Thay đổi: <span className="font-mono font-semibold">{req.currentQuantity} → {req.requestedQuantity}</span></p>
+                  <p className="text-sm text-text-muted italic mt-1">Lý do: "{req.reason}"</p>
+                </div>
+                <div className="flex-shrink-0 flex items-center space-x-2 self-end sm:self-center">
+                  <Button variant="danger" size="sm" onClick={() => setRejectionModalRequest(req)}>Từ chối</Button>
+                  <Button variant="primary" size="sm" onClick={() => approveInventoryAdjustment(req.id)}>Duyệt</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <Card 
         title="Quản lý Tồn kho"
-        actions={
-          <Button variant="primary" onClick={() => openModal('add')} leftIcon={<PlusCircleIcon size={18}/>}>Thêm vật tư</Button>
-        }
+        actions={<Button onClick={() => openModal('add')} leftIcon={<PlusCircleIcon size={18} />}>Thêm Vật tư</Button>}
       >
         <Input 
           placeholder="Tìm kiếm vật tư..."
@@ -175,27 +230,67 @@ const InventoryManagementPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-bg-surface divide-y divide-border-base">
-                {filteredInventory.map(item => (
-                  <tr key={item.id} className={`${item.quantity <= item.lowStockThreshold ? 'bg-status-warning-bg/50 dark:bg-amber-800/30' : ''} hover:bg-bg-surface-hover dark:hover:bg-slate-700/60 transition-colors`}>
-                    <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-text-heading">{item.name}</td>
-                    <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{item.quantity}</td>
-                    <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{item.unit}</td>
-                    <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{item.lowStockThreshold}</td>
-                    <td className="px-5 py-4 whitespace-nowrap text-sm">
-                      {item.quantity <= item.lowStockThreshold ? 
-                        <span className="text-status-warning-text dark:text-amber-300 font-semibold flex items-center">
-                          <AlertTriangleIcon size={16} className="mr-1.5"/>Sắp hết
-                        </span> : 
-                        <span className="text-status-success-text dark:text-emerald-300">Còn hàng</span>
-                      }
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-sm font-medium">
-                      <Button variant="ghost" size="sm" onClick={() => openModal('edit', item)} title="Sửa" className="text-text-link hover:text-brand-primary p-1.5">
-                        <EditIcon size={18}/>
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredInventory.map(item => {
+                  const pendingRequest = inventoryAdjustmentRequests.find(req => req.inventoryItemId === item.id && req.status === 'pending');
+                  let statusElement: React.ReactNode;
+                  let quantityElement: React.ReactNode;
+                  
+                  if (pendingRequest) {
+                    const requesterName = findUserById(pendingRequest.requestedByUserId)?.name || 'Không rõ';
+                    statusElement = (
+                      <div>
+                        <span className="text-amber-800 dark:text-amber-300 font-semibold flex items-center bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded-full text-xs">
+                            <ClockIcon size={14} className="mr-1.5"/>Chờ duyệt
+                        </span>
+                        <span className="text-xs text-text-muted block mt-1">Y/c bởi: {requesterName}</span>
+                      </div>
+                    );
+                    quantityElement = (
+                        <div className="flex items-center justify-start space-x-2">
+                            <span className="line-through text-text-muted">{pendingRequest.currentQuantity}</span>
+                            <ArrowRight size={14} className="text-brand-primary"/>
+                            <span className="font-bold text-brand-primary">{pendingRequest.requestedQuantity}</span>
+                        </div>
+                    );
+                  } else {
+                    if (item.quantity <= 0) {
+                        statusElement = (
+                            <span className="text-status-danger-text dark:text-rose-300 font-semibold flex items-center">
+                                <XCircleIcon size={16} className="mr-1.5"/>Hết hàng
+                            </span>
+                        );
+                    } else if (item.quantity <= item.lowStockThreshold) {
+                        statusElement = (
+                            <span className="text-status-warning-text dark:text-amber-300 font-semibold flex items-center">
+                                <AlertTriangleIcon size={16} className="mr-1.5"/>Sắp hết
+                            </span>
+                        );
+                    } else {
+                        statusElement = <span className="text-status-success-text dark:text-emerald-300">Còn hàng</span>;
+                    }
+                    quantityElement = <span className="font-bold">{item.quantity}</span>;
+                  }
+
+                  return (
+                    <tr key={item.id} className={`${item.quantity <= 0 && !pendingRequest ? 'bg-status-danger-bg/40' : item.quantity <= item.lowStockThreshold && !pendingRequest ? 'bg-status-warning-bg/50' : ''} hover:bg-bg-surface-hover transition-colors`}>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-text-heading">{item.name}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{quantityElement}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{item.unit}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{item.lowStockThreshold}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm">{statusElement}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center space-x-1">
+                                <Button variant="ghost" size="sm" onClick={() => openModal('edit', item)} title={pendingRequest ? "Vật tư này có một yêu cầu điều chỉnh đang chờ duyệt." : "Sửa"} className="text-text-link hover:text-brand-primary p-1.5" disabled={!!pendingRequest}>
+                                    <EditIcon size={18}/>
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => setHistoryItem(item)} title="Xem lịch sử thay đổi" className="text-text-muted hover:text-brand-primary p-1.5" disabled={!item.history || item.history.length === 0}>
+                                    <HistoryIcon size={18}/>
+                                </Button>
+                            </div>
+                        </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -206,21 +301,21 @@ const InventoryManagementPage: React.FC = () => {
         <Modal
           isOpen={isModalOpen}
           onClose={closeModal}
-          title={modalMode === 'add' ? 'Thêm Vật tư mới' : 'Sửa thông tin Vật tư'}
+          title={modalMode === 'add' ? 'Thêm Vật tư mới' : 'Yêu cầu Điều chỉnh Vật tư'}
           size="lg"
         >
           <form onSubmit={handleSave}>
             <div className="space-y-4 pt-2">
-              <Input label="Tên vật tư*" name="name" value={currentItem.name || ''} onChange={handleInputChange} required />
+              <Input label="Tên vật tư*" name="name" value={currentItem.name || ''} onChange={handleInputChange} required disabled={modalMode === 'edit'}/>
               
               <div>
                 <div className="flex justify-between items-end">
-                  <Input 
-                    label="Số lượng*" 
-                    name="quantity" 
+                   <Input 
+                    label={modalMode === 'add' ? 'Số lượng ban đầu*' : 'Số lượng mới*'}
+                    name="requestedQuantity" 
                     type="number" 
                     min="0" 
-                    value={currentItem.quantity === undefined ? '' : currentItem.quantity} 
+                    value={currentItem.requestedQuantity === undefined ? '' : currentItem.requestedQuantity} 
                     onChange={handleInputChange} 
                     required 
                     wrapperClassName="flex-grow"
@@ -244,17 +339,99 @@ const InventoryManagementPage: React.FC = () => {
                     accept="image/*"
                   />
                 </div>
+                 {modalMode === 'edit' && <p className="text-xs text-text-muted mt-1">Số lượng hiện tại: {currentItem.quantity}</p>}
                 {scanError && <p className="text-xs text-status-danger mt-1">{scanError}</p>}
               </div>
 
-              <Input label="Đơn vị tính*" name="unit" value={currentItem.unit || ''} onChange={handleInputChange} required />
+              <Input label="Đơn vị tính*" name="unit" value={currentItem.unit || ''} onChange={handleInputChange} required disabled={modalMode === 'edit'} />
               <Input label="Ngưỡng báo tồn*" name="lowStockThreshold" type="number" min="0" value={currentItem.lowStockThreshold === undefined ? '' : currentItem.lowStockThreshold} onChange={handleInputChange} required />
+              
+              {modalMode === 'edit' && (
+                <Input
+                  isTextArea
+                  rows={3}
+                  label="Lý do yêu cầu thay đổi*"
+                  value={editReason}
+                  onChange={e => setEditReason(e.target.value)}
+                  placeholder="VD: Kiểm kho thực tế, nhập bù số lượng hỏng..."
+                  required
+                />
+              )}
             </div>
             <div className="mt-6 flex justify-end space-x-3 border-t border-border-base pt-4">
               <Button type="button" variant="secondary" onClick={closeModal}>Hủy</Button>
-              <Button type="submit" variant="primary">Lưu</Button>
+              <Button type="submit" variant="primary">{modalMode === 'add' ? 'Thêm mới' : 'Gửi Yêu cầu'}</Button>
             </div>
           </form>
+        </Modal>
+      )}
+      
+      {historyItem && (
+        <Modal isOpen={true} onClose={() => setHistoryItem(null)} title={`Lịch sử thay đổi: ${historyItem.name}`} size="xl">
+          <div className="max-h-96 overflow-y-auto">
+            {(!historyItem.history || historyItem.history.length === 0) ? (
+              <p className="text-text-muted text-center py-4">Không có lịch sử thay đổi nào cho vật tư này.</p>
+            ) : (
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 bg-bg-subtle">
+                  <tr>
+                    <th className="p-2 text-left font-semibold text-text-muted">Người Yêu cầu</th>
+                    <th className="p-2 text-left font-semibold text-text-muted">Thời gian Yêu cầu</th>
+                    <th className="p-2 text-left font-semibold text-text-muted">Người Duyệt</th>
+                    <th className="p-2 text-left font-semibold text-text-muted">Thời gian Duyệt</th>
+                    <th className="p-2 text-left font-semibold text-text-muted">Lý do</th>
+                    <th className="p-2 text-right font-semibold text-text-muted">Thay đổi SL</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-base">
+                  {[...historyItem.history].sort((a, b) => {
+                      const dateA = a.approvedAt || a.timestamp;
+                      const dateB = b.approvedAt || b.timestamp;
+                      if (!dateA || !dateB) return 0;
+                      return new Date(dateB).getTime() - new Date(dateA).getTime();
+                  }).map(entry => {
+                    const approvedTime = entry.approvedAt || entry.timestamp;
+                    const key = (approvedTime ? new Date(approvedTime).toISOString() : uuidv4()) + entry.requestedByUserId;
+                    return (
+                      <tr key={key}>
+                        <td className="p-2">{findUserById(entry.requestedByUserId)?.name || 'Không rõ'}</td>
+                        <td className="p-2 whitespace-nowrap">{entry.requestedAt ? new Date(entry.requestedAt).toLocaleString('vi-VN', {dateStyle: 'short', timeStyle: 'short'}) : 'N/A'}</td>
+                        <td className="p-2">{findUserById(entry.approvedByUserId)?.name || 'Không rõ'}</td>
+                        <td className="p-2 whitespace-nowrap">{approvedTime ? new Date(approvedTime).toLocaleString('vi-VN', {dateStyle: 'short', timeStyle: 'short'}) : 'N/A'}</td>
+                        <td className="p-2">{entry.reason}</td>
+                        <td className="p-2 text-right font-mono">
+                          {entry.previousQuantity} <ArrowRight size={12} className="inline mx-1" /> {entry.newQuantity}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Modal>
+      )}
+
+       {rejectionModalRequest && (
+        <Modal
+          isOpen={true}
+          onClose={() => setRejectionModalRequest(null)}
+          title={`Từ chối Yêu cầu cho "${rejectionModalRequest.inventoryItemName}"`}
+          footerContent={
+            <>
+              <Button variant="secondary" onClick={() => setRejectionModalRequest(null)}>Hủy</Button>
+              <Button variant="danger" onClick={handleConfirmRejection} disabled={!rejectionReason.trim()}>Xác nhận Từ chối</Button>
+            </>
+          }
+        >
+            <Input
+                isTextArea
+                rows={3}
+                label="Lý do từ chối*"
+                value={rejectionReason}
+                onChange={e => setRejectionReason(e.target.value)}
+                required
+            />
         </Modal>
       )}
     </>

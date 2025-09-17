@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { User, UserRole, Order, InventoryItem, MaterialOrder, VariableCost, FixedCostItem, Notification, KPI, Promotion, WashMethodDefinition } from '../../../types';
+import { User, UserRole, Order, InventoryItem, MaterialOrder, VariableCost, FixedCostItem, Notification, KPI, Promotion, WashMethodDefinition, InventoryAdjustmentRequest } from '../../../types';
 
 type Props = {
   currentUser: User | null;
@@ -7,6 +7,7 @@ type Props = {
   findUsersByManagerId: (managerId: string | null) => User[];
   allOrdersData: Order[];
   allInventoryData: InventoryItem[];
+  inventoryAdjustmentRequestsData: InventoryAdjustmentRequest[];
   allMaterialOrdersData: MaterialOrder[];
   allVariableCostsData: VariableCost[];
   allFixedCostsData: FixedCostItem[];
@@ -22,6 +23,7 @@ export const useDataFiltering = ({
   findUsersByManagerId,
   allOrdersData,
   allInventoryData,
+  inventoryAdjustmentRequestsData,
   allMaterialOrdersData,
   allVariableCostsData,
   allFixedCostsData,
@@ -36,6 +38,7 @@ export const useDataFiltering = ({
       return { 
         orders: allOrdersData, 
         inventory: [], 
+        inventoryAdjustmentRequests: [],
         materialOrders: [], 
         variableCosts: [], 
         fixedCosts: [], 
@@ -52,6 +55,7 @@ export const useDataFiltering = ({
         orders: allOrdersData.filter(o => o.customer.id === currentUser.id),
         // Customers don't need access to admin-level data
         inventory: [], 
+        inventoryAdjustmentRequests: [],
         materialOrders: [], 
         variableCosts: [], 
         fixedCosts: [], 
@@ -69,7 +73,7 @@ export const useDataFiltering = ({
 
     if (currentUser.role === UserRole.CHAIRMAN) {
       // Chairman sees all data
-      return { orders: allOrdersData, inventory: allInventoryData, materialOrders: allMaterialOrdersData, variableCosts: allVariableCostsData, fixedCosts: allFixedCostsData, notifications: allNotificationsData, kpis: allKpisData, promotions: promotionsData, washMethods: washMethodsData };
+      return { orders: allOrdersData, inventory: allInventoryData, inventoryAdjustmentRequests: inventoryAdjustmentRequestsData, materialOrders: allMaterialOrdersData, variableCosts: allVariableCostsData, fixedCosts: allFixedCostsData, notifications: allNotificationsData, kpis: allKpisData, promotions: promotionsData, washMethods: washMethodsData };
     }
     
     // Owner, Manager, Staff view (data scoped to their store)
@@ -99,12 +103,13 @@ export const useDataFiltering = ({
 
     if (!relevantOwnerId) {
       // User who is not associated with any store yet
-      return { orders: [], inventory: [], materialOrders: [], variableCosts: [], fixedCosts: [], notifications: filteredNotifications, kpis: [], promotions: [], washMethods: [] };
+      return { orders: [], inventory: [], inventoryAdjustmentRequests: [], materialOrders: [], variableCosts: [], fixedCosts: [], notifications: filteredNotifications, kpis: [], promotions: [], washMethods: [] };
     }
     
     return {
         orders: allOrdersData.filter(o => o.ownerId === relevantOwnerId),
         inventory: allInventoryData.filter(i => i.ownerId === relevantOwnerId),
+        inventoryAdjustmentRequests: inventoryAdjustmentRequestsData.filter(req => req.ownerId === relevantOwnerId),
         materialOrders: allMaterialOrdersData.filter(mo => mo.ownerId === relevantOwnerId),
         variableCosts: allVariableCostsData.filter(vc => vc.ownerId === relevantOwnerId),
         fixedCosts: allFixedCostsData.filter(fc => fc.ownerId === relevantOwnerId),
@@ -113,7 +118,7 @@ export const useDataFiltering = ({
         promotions: promotionsData.filter(p => p.ownerId === relevantOwnerId || p.isSystemWide),
         washMethods: washMethodsData.filter(wm => wm.ownerId === relevantOwnerId),
     };
-  }, [currentUser, currentUserOwnerId, allOrdersData, allInventoryData, allMaterialOrdersData, allVariableCostsData, allFixedCostsData, allNotificationsData, allKpisData, promotionsData, washMethodsData, findUsersByManagerId]);
+  }, [currentUser, currentUserOwnerId, allOrdersData, allInventoryData, inventoryAdjustmentRequestsData, allMaterialOrdersData, allVariableCostsData, allFixedCostsData, allNotificationsData, allKpisData, promotionsData, washMethodsData, findUsersByManagerId]);
 
   return filteredData;
 };

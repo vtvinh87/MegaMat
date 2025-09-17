@@ -1,7 +1,3 @@
-
-
-
-
 export interface WashMethodDefinition {
   id: string;
   name: string;
@@ -131,6 +127,17 @@ export interface Supplier {
   transactionHistory?: string[]; 
 }
 
+export interface InventoryUpdateHistoryEntry {
+  timestamp?: Date; // For backward compatibility
+  requestedAt?: Date;
+  approvedAt?: Date;
+  requestedByUserId: string;
+  approvedByUserId: string;
+  reason: string;
+  previousQuantity: number;
+  newQuantity: number;
+}
+
 export interface InventoryItem {
   id: string;
   name: string; 
@@ -138,6 +145,23 @@ export interface InventoryItem {
   unit: string; 
   lowStockThreshold: number;
   ownerId: string; // ID of the Owner user for this store branch
+  history?: InventoryUpdateHistoryEntry[];
+}
+
+export interface InventoryAdjustmentRequest {
+  id: string;
+  inventoryItemId: string;
+  inventoryItemName: string; // Snapshot for easy display
+  requestedByUserId: string;
+  reason: string;
+  currentQuantity: number; // Quantity at the time of request
+  requestedQuantity: number; // The new quantity being requested
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: Date;
+  respondedByUserId?: string;
+  respondedAt?: Date;
+  rejectionReason?: string;
+  ownerId: string;
 }
 
 export interface Notification {
@@ -437,6 +461,7 @@ export interface AppData {
   orders: Order[];
   suppliers: Supplier[];
   inventory: InventoryItem[];
+  inventoryAdjustmentRequests: InventoryAdjustmentRequest[];
   materialOrders: MaterialOrder[];
   materialItemDefinitions: MaterialItemDefinition[]; 
   notifications: Notification[];
@@ -478,7 +503,10 @@ export interface AppContextType extends AppData {
   addSupplier: (supplier: Supplier) => void;
   updateSupplier: (supplier: Supplier) => void;
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'ownerId'>) => void; // ownerId will be set by context
-  updateInventoryItem: (item: InventoryItem) => void;
+  updateInventoryItem: (item: InventoryItem, reason: string) => void; // Will be deprecated
+  requestInventoryAdjustment: (itemId: string, requestedQuantity: number, reason: string) => void;
+  approveInventoryAdjustment: (requestId: string) => void;
+  rejectInventoryAdjustment: (requestId: string, rejectionReason: string) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read' | 'ownerId'> & { showToast?: boolean }) => void; // ownerId will be set by context
   markNotificationAsRead: (id: string) => void;
   clearNotifications: () => void; // This might be removed if only "mark all read" is used by tray

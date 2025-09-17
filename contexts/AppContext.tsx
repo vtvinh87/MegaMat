@@ -1,6 +1,9 @@
 
 
 
+
+
+
 import React, { createContext, useState, useCallback, useEffect } from 'react';
 import { AppData, Notification, Theme, User, UserRole } from '../types';
 import { useAppState } from './app/state';
@@ -121,10 +124,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   
   const inventoryManagement = useInventoryManagement({
+      currentUser: currentUserInternal,
       currentUserOwnerId: userManagement.getCurrentUserOwnerId(),
       allInventoryData: appState.allInventoryData,
       setAllInventoryData: appState.setAllInventoryData,
       addNotification: notificationLogic.addNotification,
+      inventoryAdjustmentRequests: appState.inventoryAdjustmentRequestsData,
+      setInventoryAdjustmentRequests: appState.setInventoryAdjustmentRequestsData,
+      usersData: appState.usersData,
   });
   
   const materialManagement = useMaterialManagement({

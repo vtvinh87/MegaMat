@@ -3,7 +3,7 @@ import {
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
     MaterialItemDefinition, Notification, VariableCost, FixedCostItem, 
     FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreProfile,
-    StoreUpdateHistoryEntry, Promotion, WashMethodDefinition
+    StoreUpdateHistoryEntry, Promotion, WashMethodDefinition, InventoryAdjustmentRequest
 } from '../../types';
 import { loadDataFromLocalStorage, saveDataToLocalStorage } from './utils';
 import * as LsKeys from './utils';
@@ -29,6 +29,7 @@ export const useAppState = () => {
   const [allOrdersData, setAllOrdersData] = useState<Order[]>(() => loadDataFromLocalStorage<Order[]>(LsKeys.ORDERS_KEY, [], 'orders'));
   const [suppliersData, setSuppliersData] = useState<Supplier[]>(() => loadDataFromLocalStorage<Supplier[]>(LsKeys.SUPPLIERS_KEY, []));
   const [allInventoryData, setAllInventoryData] = useState<InventoryItem[]>(() => loadDataFromLocalStorage<InventoryItem[]>(LsKeys.INVENTORY_KEY, []));
+  const [inventoryAdjustmentRequestsData, setInventoryAdjustmentRequestsData] = useState<InventoryAdjustmentRequest[]>(() => loadDataFromLocalStorage<InventoryAdjustmentRequest[]>(LsKeys.STORAGE_PREFIX + 'inventoryAdjustmentRequests', [], 'inventoryAdjustmentRequests'));
   const [allMaterialOrdersData, setAllMaterialOrdersData] = useState<MaterialOrder[]>(() => loadDataFromLocalStorage<MaterialOrder[]>(LsKeys.MATERIAL_ORDERS_KEY, [], 'materialOrders'));
   const [materialItemDefinitionsData, setMaterialItemDefinitionsData] = useState<MaterialItemDefinition[]>(() => loadDataFromLocalStorage<MaterialItemDefinition[]>(LsKeys.MATERIAL_DEFINITIONS_KEY, []));
   const [allNotificationsData, setAllNotificationsData] = useState<Notification[]>(() => loadDataFromLocalStorage<Notification[]>(LsKeys.NOTIFICATIONS_KEY, [], 'notifications'));
@@ -53,6 +54,7 @@ export const useAppState = () => {
   useDebouncedSave(LsKeys.ORDERS_KEY, allOrdersData);
   useDebouncedSave(LsKeys.SUPPLIERS_KEY, suppliersData);
   useDebouncedSave(LsKeys.INVENTORY_KEY, allInventoryData);
+  useDebouncedSave(LsKeys.STORAGE_PREFIX + 'inventoryAdjustmentRequests', inventoryAdjustmentRequestsData);
   useDebouncedSave(LsKeys.MATERIAL_ORDERS_KEY, allMaterialOrdersData);
   useDebouncedSave(LsKeys.MATERIAL_DEFINITIONS_KEY, materialItemDefinitionsData);
   useDebouncedSave(LsKeys.NOTIFICATIONS_KEY, allNotificationsData);
@@ -79,6 +81,7 @@ export const useAppState = () => {
     allOrdersData, setAllOrdersData,
     suppliersData, setSuppliersData,
     allInventoryData, setAllInventoryData,
+    inventoryAdjustmentRequestsData, setInventoryAdjustmentRequestsData,
     allMaterialOrdersData, setAllMaterialOrdersData,
     materialItemDefinitionsData, setMaterialItemDefinitionsData,
     allNotificationsData, setAllNotificationsData,
