@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useData } from '../../../contexts/DataContext';
 // FIX: Replaced deprecated `Customer` type with `User`.
@@ -122,7 +123,8 @@ export const AIAssistantTab: React.FC<AIAssistantTabProps> = ({ loggedInCustomer
   const activePromotions = useMemo(() => {
     const now = new Date();
     return promotions.filter(p => 
-        p.isActive &&
+        // FIX: Replaced deprecated `p.isActive` with `p.status === 'active'` to correctly check the promotion's status.
+        p.status === 'active' &&
         (!p.startDate || new Date(p.startDate) <= now) &&
         (!p.endDate || new Date(p.endDate) >= now)
     );

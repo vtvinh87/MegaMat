@@ -376,7 +376,11 @@ export interface Promotion {
   discountType: 'percentage' | 'fixed_amount';
   discountValue: number;
   maxDiscountAmount?: number; // Maximum discount amount in VND for percentage-based promotions
-  isActive: boolean;
+  status: 'pending' | 'active' | 'inactive' | 'rejected'; // Replaces isActive
+  createdBy?: string; // ID of the user who created it (especially for managers)
+  approvedBy?: string; // ID of the user who approved it
+  approvedAt?: Date;
+  rejectionReason?: string;
   startDate?: Date;
   endDate?: Date;
   applicableDaysOfWeek?: number[]; // 0 for Sunday, 1 for Monday, ..., 6 for Saturday
@@ -503,9 +507,11 @@ export interface AppContextType extends AppData {
   deleteStoreAndOwner: (ownerId: string, reason: string) => void;
 
   // Promotion Management
-  addPromotion: (promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId'> & { isSystemWide?: boolean }) => void;
+  addPromotion: (promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId' | 'status' | 'createdBy' | 'approvedBy' | 'approvedAt' | 'rejectionReason'> & { isSystemWide?: boolean, isActive?: boolean }) => void;
   updatePromotion: (promotionData: Promotion) => void;
   deletePromotion: (promotionId: string) => void;
+  approvePromotion: (promotionId: string) => void;
+  rejectPromotion: (promotionId: string, reason: string) => void;
   findPromotionByCode: (code: string, forStoreOwnerId?: string, channel?: 'online' | 'instore') => Promotion | undefined;
   requestPromotionOptOut: (promotionId: string, reason: string) => void;
   respondToOptOutRequest: (promotionId: string, storeOwnerId: string, response: 'approved' | 'rejected', rejectionReason?: string) => void;

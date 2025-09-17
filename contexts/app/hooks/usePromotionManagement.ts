@@ -1,5 +1,4 @@
 
-
 import { useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Promotion, User, UserRole } from '../../../types';
@@ -150,7 +149,7 @@ export const usePromotionManagement = ({
             const updatedRequest = { ...p.cancellationRequest, status: 'approved' as const, respondedAt: new Date() };
             chairmanId = p.cancellationRequest.requestedBy;
             addNotification({ message: `Đã chấp thuận hủy khuyến mãi "${p.name}". Chương trình đã được vô hiệu hóa.`, type: 'success', showToast: true });
-            return { ...p, cancellationRequest: updatedRequest, isActive: false };
+            return { ...p, cancellationRequest: updatedRequest, status: 'inactive' };
         }
         return p;
     }));
@@ -165,24 +164,48 @@ export const usePromotionManagement = ({
     }
   }, [currentUser, setPromotionsData, addNotification, promotionsData]);
 
-  const addPromotion = useCallback((promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId'> & { isSystemWide?: boolean }) => {
+  const addPromotion = useCallback((promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId' | 'status' | 'createdBy' | 'approvedBy' | 'approvedAt' | 'rejectionReason'> & { isSystemWide?: boolean, isActive?: boolean }) => {
     if (!currentUser) {
       addNotification({ message: "Lỗi: Không thể xác định người dùng.", type: 'error', showToast: true });
       return;
     }
-    const ownerId = promotionData.isSystemWide && currentUser.role === UserRole.CHAIRMAN ? currentUser.id : currentUserOwnerId;
+
+    const { isActive, ...restOfData } = promotionData;
+
+    const ownerId = promotionData.isSystemWide && currentUser.role === UserRole.CHAIRMAN 
+      ? currentUser.id 
+      : currentUserOwnerId;
+
     if (!ownerId) {
       addNotification({ message: "Lỗi: Không thể xác định chủ sở hữu cho khuyến mãi này.", type: 'error', showToast: true });
       return;
     }
-    const newPromotion: Promotion = { 
-        ...promotionData, 
-        id: uuidv4(), 
-        timesUsed: 0, 
+    
+    // Determine status based on user role
+    const isManagerCreating = currentUser.role === UserRole.MANAGER;
+    const initialStatus = isManagerCreating ? 'pending' : (isActive ? 'active' : 'inactive');
+
+    const newPromotion: Promotion = {
+        ...restOfData,
+        id: uuidv4(),
+        timesUsed: 0,
         ownerId: ownerId,
+        createdBy: currentUser.id,
+        status: initialStatus,
     };
+
     setPromotionsData(prev => [newPromotion, ...prev]);
     addNotification({ message: `Đã thêm khuyến mãi mới: ${newPromotion.name}`, type: 'success', showToast: true });
+    
+    // If a manager creates it, notify their owner
+    if (isManagerCreating && currentUser.managedBy) {
+      addNotification({
+        message: `Quản lý "${currentUser.name}" đã tạo khuyến mãi "${newPromotion.name}" và đang chờ bạn duyệt.`,
+        type: 'warning',
+        userId: currentUser.managedBy, // Notify the manager's manager (the owner)
+        showToast: true
+      });
+    }
     
     // If system-wide, notify all owners
     if (newPromotion.isSystemWide && currentUser.role === UserRole.CHAIRMAN) {
@@ -265,6 +288,50 @@ export const usePromotionManagement = ({
     return promotion;
   }, [promotionsData, currentUserOwnerId]);
 
+  const approvePromotion = useCallback((promotionId: string) => {
+    if (!currentUser || (currentUser.role !== UserRole.OWNER && currentUser.role !== UserRole.CHAIRMAN)) {
+      addNotification({ message: "Chỉ chủ cửa hàng hoặc chủ tịch mới có quyền duyệt khuyến mãi.", type: 'error', showToast: true });
+      return;
+    }
+
+    setPromotionsData(prev => prev.map(p => {
+      if (p.id === promotionId && p.status === 'pending') {
+        const promoCreator = usersData.find(u => u.id === p.createdBy);
+        const canApprove = (currentUser.role === UserRole.CHAIRMAN) || 
+                         (currentUser.role === UserRole.OWNER && promoCreator?.managedBy === currentUser.id);
+
+        if (canApprove) {
+          addNotification({ message: `Khuyến mãi "${p.name}" đã được duyệt và kích hoạt.`, type: 'success', showToast: true, userId: p.createdBy });
+          return { ...p, status: 'active', approvedBy: currentUser.id, approvedAt: new Date(), rejectionReason: undefined };
+        } else {
+           addNotification({ message: `Bạn không có quyền duyệt khuyến mãi này.`, type: 'error', showToast: true });
+        }
+      }
+      return p;
+    }));
+  }, [currentUser, setPromotionsData, addNotification, usersData]);
+
+  const rejectPromotion = useCallback((promotionId: string, reason: string) => {
+     if (!currentUser || (currentUser.role !== UserRole.OWNER && currentUser.role !== UserRole.CHAIRMAN)) {
+      addNotification({ message: "Chỉ chủ cửa hàng hoặc chủ tịch mới có quyền từ chối khuyến mãi.", type: 'error', showToast: true });
+      return;
+    }
+     setPromotionsData(prev => prev.map(p => {
+      if (p.id === promotionId && p.status === 'pending') {
+        const promoCreator = usersData.find(u => u.id === p.createdBy);
+        const canReject = (currentUser.role === UserRole.CHAIRMAN) || 
+                        (currentUser.role === UserRole.OWNER && promoCreator?.managedBy === currentUser.id);
+        if (canReject) {
+            addNotification({ message: `Khuyến mãi "${p.name}" của bạn đã bị từ chối. Lý do: ${reason}`, type: 'warning', showToast: true, userId: p.createdBy });
+            return { ...p, status: 'rejected', approvedBy: currentUser.id, approvedAt: new Date(), rejectionReason: reason };
+        } else {
+             addNotification({ message: `Bạn không có quyền từ chối khuyến mãi này.`, type: 'error', showToast: true });
+        }
+      }
+      return p;
+    }));
+  }, [currentUser, setPromotionsData, addNotification, usersData]);
+
 
   return {
     addPromotion,
@@ -278,5 +345,7 @@ export const usePromotionManagement = ({
     acknowledgeSystemPromo,
     acknowledgeCancelRequest,
     acknowledgeOptOutRequest,
+    approvePromotion,
+    rejectPromotion,
   };
 };

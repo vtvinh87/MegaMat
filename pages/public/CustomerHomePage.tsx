@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useMemo, FormEvent } from 'react';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -96,7 +97,8 @@ export const CustomerHomePage: React.FC = () => {
     const now = new Date();
     const today = now.getDay(); // 0 for Sunday, 1 for Monday...
     return promotions.filter(p => 
-        p.isActive &&
+        // FIX: Replaced deprecated `p.isActive` with `p.status === 'active'` to correctly check the promotion's status.
+        p.status === 'active' &&
         (!p.startDate || new Date(p.startDate) <= now) &&
         (!p.endDate || new Date(p.endDate) >= now) &&
         (!p.applicableDaysOfWeek || p.applicableDaysOfWeek.length === 0 || p.applicableDaysOfWeek.includes(today)) &&

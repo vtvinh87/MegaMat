@@ -184,7 +184,8 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
     const promotion = findPromotionByCode(voucherCode.trim(), targetStoreOwnerId, 'online');
     
     if (!promotion) { setPromotionError("Mã khuyến mãi không hợp lệ hoặc không áp dụng cho cửa hàng này."); return; }
-    if (!promotion.isActive) { setPromotionError("Mã khuyến mãi đã hết hiệu lực."); return; }
+    // FIX: Replaced deprecated `promotion.isActive` with `promotion.status !== 'active'` to check promotion status.
+    if (promotion.status !== 'active') { setPromotionError("Mã khuyến mãi đã hết hiệu lực."); return; }
     if (promotion.startDate && new Date(promotion.startDate) > new Date()) { setPromotionError("Mã chưa đến ngày áp dụng."); return; }
     if (promotion.endDate && new Date(promotion.endDate) < new Date()) { setPromotionError("Mã đã hết hạn."); return; }
     if (promotion.usageLimit && promotion.timesUsed >= promotion.usageLimit) { setPromotionError("Mã đã hết lượt sử dụng."); return; }

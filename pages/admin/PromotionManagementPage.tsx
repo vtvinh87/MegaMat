@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, ChangeEvent, FormEvent, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useData } from '../../contexts/DataContext';
@@ -11,6 +12,7 @@ import { Modal } from '../../components/ui/Modal';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Spinner } from '../../components/ui/Spinner';
 import { PlusCircleIcon, EditIcon, Trash2Icon, SearchIcon, TagIcon, Percent, DollarSign, Calendar, AlertTriangle, CheckCircle, XCircle, BarChart2, TrendingUp, Users, SparklesIcon, Building, ShieldCheck, ShieldAlert, ShieldOff, BanIcon, HelpCircleIcon, Settings2Icon, DropletsIcon, MegaphoneIcon } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 
 // Generic Reason Modal Component
@@ -48,13 +50,15 @@ const PromotionCard: React.FC<{
   currentUser: User;
   onEdit: (p: Promotion) => void;
   onDelete: (id: string) => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string, reason: string) => void;
   onRequestOptOut: (id: string, reason: string) => void;
   onRespondToOptOut: (promoId: string, ownerId: string, response: 'approved' | 'rejected', reason?: string) => void;
   onRequestCancellation: (id: string, reason: string) => void;
   onRespondToCancellation: (id: string) => void;
-}> = ({ promotion, orders, users, currentUser, onEdit, onDelete, onRequestOptOut, onRespondToOptOut, onRequestCancellation, onRespondToCancellation }) => {
+}> = ({ promotion, orders, users, currentUser, onEdit, onDelete, onApprove, onReject, onRequestOptOut, onRespondToOptOut, onRequestCancellation, onRespondToCancellation }) => {
     
-    const [reasonModal, setReasonModal] = useState<'optOut' | 'cancelRequest' | 'rejectOptOut' | null>(null);
+    const [reasonModal, setReasonModal] = useState<'optOut' | 'cancelRequest' | 'rejectOptOut' | 'rejectPromotion' | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
     const [currentOwnerToReject, setCurrentOwnerToReject] = useState<string | null>(null);
 
@@ -119,12 +123,27 @@ const PromotionCard: React.FC<{
         if (pendingOptOuts.length > 0) {
              return <span className="flex items-center text-xs text-amber-600 bg-amber-100 p-1.5 rounded-md"><ShieldAlert size={14} className="mr-1"/>{pendingOptOuts.length} cửa hàng chờ duyệt</span>;
         }
-        return promotion.isActive ? 
+
+        if(promotion.status === 'pending') {
+            return <span className="flex items-center text-xs text-amber-600 bg-amber-100 p-1.5 rounded-md"><ShieldAlert size={14} className="mr-1"/>Chờ duyệt</span>;
+        }
+        if(promotion.status === 'rejected') {
+            return <span className="flex items-center text-xs text-red-600 bg-red-100 p-1.5 rounded-md"><XCircle size={14} className="mr-1"/>Đã từ chối</span>;
+        }
+
+        return promotion.status === 'active' ? 
             <span className="flex items-center text-xs text-status-success"><CheckCircle size={14} className="mr-1"/>Hoạt động</span> : 
             <span className="flex items-center text-xs text-status-danger"><XCircle size={14} className="mr-1"/>Không hoạt động</span>
     };
 
     const renderActionButtons = () => {
+        // Owner's approval actions
+        if (isOwner && promotion.status === 'pending' && promotion.createdBy !== currentUser.id) {
+            return <>
+                <Button variant="ghost" size="sm" onClick={() => onApprove(promotion.id)} className="p-2 text-status-success" title="Duyệt"><CheckCircle size={18} /></Button>
+                <Button variant="ghost" size="sm" onClick={() => setReasonModal('rejectPromotion')} className="p-2 text-status-danger" title="Từ chối"><XCircle size={18} /></Button>
+            </>
+        }
         // Chairman's actions
         if (isChairman) {
             if (promotion.isSystemWide) { // Chairman's own promo
@@ -143,17 +162,20 @@ const PromotionCard: React.FC<{
                     return <Button variant="secondary" size="sm" onClick={() => setReasonModal('optOut')}>Từ chối tham gia</Button>
                 }
             } else if (isMyStorePromo) { // My own promo
-                if (myCancellationRequest?.status === 'pending') {
+                if(promotion.status === 'pending' || promotion.status === 'rejected') {
+                     // Can't edit/delete own promo if it's pending/rejected
+                } else if (myCancellationRequest?.status === 'pending') {
                     return <Button variant="danger" size="sm" onClick={() => onRespondToCancellation(promotion.id)}>Chấp thuận Hủy</Button>
+                } else {
+                    return <>
+                        <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>
+                    </>
                 }
-                return <>
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>
-                </>
             }
         }
-        // For Manager, they can edit/delete promos of their store owner
-        if(currentUser.role === UserRole.MANAGER && promotion.ownerId === currentUser.managedBy){
+        // For Manager, they can edit/delete promos they created, IF NOT PENDING
+        if(currentUser.role === UserRole.MANAGER && promotion.createdBy === currentUser.id && promotion.status !== 'pending' && promotion.status !== 'rejected'){
              return <>
                     <Button variant="ghost" size="sm" onClick={() => onEdit(promotion)} className="p-2" title="Chỉnh sửa"><EditIcon size={18} /></Button>
                     <Button variant="ghost" size="sm" onClick={() => onDelete(promotion.id)} className="p-2 text-status-danger" title="Xóa"><Trash2Icon size={18} /></Button>
@@ -246,6 +268,15 @@ const PromotionCard: React.FC<{
                 placeholder="VD: Chương trình là bắt buộc để đồng bộ thương hiệu..."
                 confirmText="Gửi Lý do & Từ chối"
             />
+            <ReasonModal
+                isOpen={reasonModal === 'rejectPromotion'}
+                onClose={() => setReasonModal(null)}
+                onConfirm={(reason) => { onReject(promotion.id, reason); setReasonModal(null); }}
+                title="Lý do Từ chối Khuyến mãi"
+                label="Lý do*"
+                placeholder="VD: Chương trình chưa phù hợp, cần chỉnh sửa lại..."
+                confirmText="Xác nhận Từ chối"
+            />
         </>
     );
 };
@@ -264,7 +295,7 @@ const getVietnameseEvents = (month: number): string => { // month is 0-indexed
 };
 
 const PromotionManagementPage: React.FC = () => {
-  const { promotions, addPromotion, updatePromotion, deletePromotion, orders, users, requestPromotionOptOut, respondToOptOutRequest, requestPromotionCancellation, respondToCancellationRequest, addNotification, services, washMethods } = useData();
+  const { promotions, addPromotion, updatePromotion, deletePromotion, orders, users, requestPromotionOptOut, respondToOptOutRequest, requestPromotionCancellation, respondToCancellationRequest, addNotification, services, washMethods, approvePromotion, rejectPromotion } = useData();
   const { currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -279,6 +310,7 @@ const PromotionManagementPage: React.FC = () => {
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [revenueInsight, setRevenueInsight] = useState<string>('');
+  const [usedSuggestionCodes, setUsedSuggestionCodes] = useState<string[]>([]);
   // --- END: AI Suggestion State ---
 
   // --- START: AI Campaign State ---
@@ -310,14 +342,16 @@ const PromotionManagementPage: React.FC = () => {
             promos = promotions.filter(p => p.ownerId === storeFilter || p.isSystemWide);
         }
     } else if (isOwner) {
+        const myManagedUserIds = users.filter(u => u.managedBy === currentUser.id).map(u => u.id);
         promos = promotions.filter(p => 
             p.ownerId === currentUser.id || 
+            (p.createdBy && myManagedUserIds.includes(p.createdBy)) ||
             (p.isSystemWide)
         );
-    }
-    else if (currentUser?.role === UserRole.MANAGER) {
+    } else if (currentUser?.role === UserRole.MANAGER) {
         promos = promotions.filter(p => 
-            p.ownerId === currentUser.managedBy ||
+            (p.ownerId === currentUser.managedBy && p.status !== 'pending' && p.status !== 'rejected') || // See approved promos in the store
+            (p.createdBy === currentUser.id) || // See my own promos (pending or otherwise)
             (p.isSystemWide)
         );
     }
@@ -325,8 +359,8 @@ const PromotionManagementPage: React.FC = () => {
     return promos.filter(p =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.code.toLowerCase().includes(searchTerm.toLowerCase())
-    ).sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0) || new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime());
-  }, [promotions, searchTerm, isChairman, isOwner, storeFilter, currentUser]);
+    ).sort((a, b) => (b.status === 'active' ? 1 : 0) - (a.status === 'active' ? 1 : 0) || new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime());
+  }, [promotions, searchTerm, isChairman, isOwner, storeFilter, currentUser, users]);
   
   // Data analysis for AI suggestions (both promo and campaign)
   useMemo(() => {
@@ -385,6 +419,7 @@ const PromotionManagementPage: React.FC = () => {
     setIsGeneratingSuggestion(true);
     setAiError(null);
     setAiSuggestions(null);
+    setUsedSuggestionCodes([]); // Reset used suggestions on new generation
     
     const now = new Date();
     const eventContext = getVietnameseEvents(now.getMonth());
@@ -536,18 +571,48 @@ const PromotionManagementPage: React.FC = () => {
     }
 };
 
-
   const handleUseSuggestion = (suggestion: Partial<Promotion>) => {
-    openModal('add', {
-        ...suggestion,
+    if (!canManage || !currentUser) return;
+    
+    if (suggestion.code && promotions.some(p => p.code.toLowerCase() === suggestion.code?.toLowerCase())) {
+        addNotification({ message: `Mã khuyến mãi "${suggestion.code}" đã tồn tại.`, type: 'error', showToast: true });
+        if (suggestion.code && !usedSuggestionCodes.includes(suggestion.code)) {
+            setUsedSuggestionCodes(prev => [...prev, suggestion.code!]);
+        }
+        return;
+    }
+
+    const isSystemWide = isChairman && suggestion.isSystemWide;
+
+    const promotionData = {
+        name: suggestion.name || 'Khuyến mãi do AI tạo',
+        code: suggestion.code || `AI${uuidv4().slice(0, 4).toUpperCase()}`,
         type: 'discount_voucher',
+        discountType: suggestion.discountType || 'percentage',
+        discountValue: Number(suggestion.discountValue) || 10,
+        // Status is handled by addPromotion hook based on creator's role
+        isSystemWide: isSystemWide,
+        startDate: suggestion.startDate ? new Date(suggestion.startDate) : undefined,
+        endDate: suggestion.endDate ? new Date(suggestion.endDate) : undefined,
+        applicableDaysOfWeek: suggestion.applicableDaysOfWeek?.length ? suggestion.applicableDaysOfWeek : undefined,
+        applicableServiceIds: suggestion.applicableServiceIds?.length ? suggestion.applicableServiceIds : undefined,
+        applicableWashMethodIds: suggestion.applicableWashMethodIds?.length ? suggestion.applicableWashMethodIds : undefined,
+        applicableChannels: suggestion.applicableChannels?.length ? suggestion.applicableChannels : undefined,
+        minOrderAmount: suggestion.minOrderAmount ? Number(suggestion.minOrderAmount) : undefined,
+        maxDiscountAmount: suggestion.maxDiscountAmount ? Number(suggestion.maxDiscountAmount) : undefined,
+        usageLimit: suggestion.usageLimit ? Number(suggestion.usageLimit) : undefined,
+        usageLimitPerCustomer: suggestion.usageLimitPerCustomer ? Number(suggestion.usageLimitPerCustomer) : 1,
+        // The `isActive` flag is used by the hook to set initial status for owners/chairmen
         isActive: true,
-        usageLimitPerCustomer: 1,
-    });
-    setIsAiSuggestModalOpen(false);
-    setAiPromoGoal('');
-    setAiSuggestions(null);
+    };
+    
+    addPromotion(promotionData as any);
+
+    if (suggestion.code) {
+        setUsedSuggestionCodes(prev => [...prev, suggestion.code!]);
+    }
   };
+
 
   const openModal = (mode: 'add' | 'edit', promotion: Partial<Promotion> | null = null) => {
     if (!canManage) return;
@@ -555,7 +620,7 @@ const PromotionManagementPage: React.FC = () => {
     setFormError(null);
     setCurrentPromotion(mode === 'add' ? (promotion || {
       name: '', code: '', type: 'discount_voucher', discountType: 'percentage',
-      discountValue: 10, isActive: true, minOrderAmount: undefined, maxDiscountAmount: undefined,
+      discountValue: 10, status: 'inactive', minOrderAmount: undefined, maxDiscountAmount: undefined,
       usageLimit: undefined, usageLimitPerCustomer: 1, isSystemWide: false, applicableDaysOfWeek: [], 
       applicableServiceIds: [], applicableWashMethodIds: [], applicableChannels: []
     }) : { ...promotion });
@@ -575,11 +640,12 @@ const PromotionManagementPage: React.FC = () => {
         return;
     }
     const isSystemWide = isChairman && currentPromotion.isSystemWide;
+    
+    const isActive = currentPromotion.status === 'active';
 
     const promotionData = {
       name: currentPromotion.name, code: currentPromotion.code.toUpperCase(), type: currentPromotion.type!,
       discountType: currentPromotion.discountType, discountValue: Number(currentPromotion.discountValue),
-      isActive: currentPromotion.isActive || false,
       startDate: currentPromotion.startDate ? new Date(currentPromotion.startDate) : undefined,
       endDate: currentPromotion.endDate ? new Date(currentPromotion.endDate) : undefined,
       applicableDaysOfWeek: currentPromotion.applicableDaysOfWeek?.length ? currentPromotion.applicableDaysOfWeek : undefined,
@@ -594,9 +660,9 @@ const PromotionManagementPage: React.FC = () => {
     };
     
     if (modalMode === 'add') {
-      addPromotion(promotionData as Omit<Promotion, 'id' | 'timesUsed' | 'ownerId'> & { isSystemWide?: boolean });
+      addPromotion({ ...promotionData, isActive });
     } else if (currentPromotion.id) {
-      updatePromotion({ ...currentPromotion, ...promotionData } as Promotion);
+      updatePromotion({ ...currentPromotion, ...promotionData, status: isActive ? 'active' : 'inactive' } as Promotion);
     }
     closeModal();
   };
@@ -642,7 +708,12 @@ const PromotionManagementPage: React.FC = () => {
     if (!currentPromotion) return;
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
-        setCurrentPromotion({ ...currentPromotion, [name]: (e.target as HTMLInputElement).checked });
+        const checked = (e.target as HTMLInputElement).checked;
+        if (name === 'isActive') {
+            setCurrentPromotion({ ...currentPromotion, status: checked ? 'active' : 'inactive' });
+        } else {
+            setCurrentPromotion({ ...currentPromotion, [name]: checked });
+        }
     } else {
         setCurrentPromotion({ ...currentPromotion, [name]: value });
     }
@@ -668,6 +739,13 @@ const PromotionManagementPage: React.FC = () => {
       .replace(/\* (.*?)(?=\n\*|\n\n|$)/g, '<li>$1</li>') // List items
       .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>') // Wrap in ul
       .replace(/\n/g, '<br />'); // Newlines
+  };
+
+  const closeAiSuggestModal = () => {
+    setIsAiSuggestModalOpen(false);
+    setAiSuggestions(null);
+    setAiPromoGoal('');
+    setUsedSuggestionCodes([]);
   };
 
   return (
@@ -701,6 +779,9 @@ const PromotionManagementPage: React.FC = () => {
                         currentUser={currentUser!}
                         onEdit={openModal.bind(null, 'edit')} 
                         onDelete={handleDelete}
+                        onApprove={approvePromotion}
+// FIX: Changed `onReject` to `rejectPromotion` to pass the correct function from the context.
+                        onReject={rejectPromotion}
                         onRequestOptOut={requestPromotionOptOut}
                         onRespondToOptOut={respondToOptOutRequest}
                         onRequestCancellation={requestPromotionCancellation}
@@ -813,8 +894,8 @@ const PromotionManagementPage: React.FC = () => {
             </fieldset>
             
             <label className="flex items-center space-x-3 cursor-pointer pt-2">
-                <input type="checkbox" name="isActive" checked={!!currentPromotion.isActive} onChange={handleInputChange} className="h-5 w-5 rounded border-gray-300 text-brand-primary focus:ring-brand-primary-focus"/>
-                <span className="text-text-body font-medium">Kích hoạt khuyến mãi</span>
+                <input type="checkbox" name="isActive" checked={currentPromotion.status === 'active'} onChange={handleInputChange} className="h-5 w-5 rounded border-gray-300 text-brand-primary focus:ring-brand-primary-focus" disabled={currentUser?.role === UserRole.MANAGER}/>
+                <span className="text-text-body font-medium">Kích hoạt khuyến mãi {currentUser?.role === UserRole.MANAGER && <span className="text-xs text-text-muted">(Chủ tiệm sẽ duyệt)</span>}</span>
             </label>
             
             <div className="mt-6 flex justify-end space-x-3 border-t border-border-base pt-4">
@@ -826,7 +907,7 @@ const PromotionManagementPage: React.FC = () => {
       )}
 
       {isAiSuggestModalOpen && (
-        <Modal isOpen={isAiSuggestModalOpen} onClose={() => setIsAiSuggestModalOpen(false)} title="Trợ lý AI Gợi ý Khuyến mãi" size="xl">
+        <Modal isOpen={isAiSuggestModalOpen} onClose={closeAiSuggestModal} title="Trợ lý AI Gợi ý Khuyến mãi" size="xl">
             <div className="space-y-4">
                 {!aiSuggestions && !isGeneratingSuggestion && (
                     <>
@@ -853,7 +934,9 @@ const PromotionManagementPage: React.FC = () => {
                     <div className="mt-4 pt-4 border-t border-border-base">
                         <h4 className="font-semibold text-text-heading mb-2">AI đề xuất 3 phương án:</h4>
                         <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
-                            {aiSuggestions.map((suggestion, index) => (
+                            {aiSuggestions.map((suggestion, index) => {
+                                const isUsed = suggestion.code && usedSuggestionCodes.includes(suggestion.code);
+                                return (
                                 <Card key={index} className="!shadow-sm bg-bg-subtle/50">
                                     <div className="flex justify-between items-start">
                                         <div className="space-y-1 text-sm flex-grow">
@@ -866,12 +949,14 @@ const PromotionManagementPage: React.FC = () => {
                                                 <p><strong>Ngày áp dụng:</strong> {suggestion.applicableDaysOfWeek.map(d => daysOfWeek[d]).join(', ')}</p>
                                             )}
                                         </div>
-                                        <Button onClick={() => handleUseSuggestion(suggestion)} size="sm" className="flex-shrink-0 ml-2">Sử dụng</Button>
+                                        <Button onClick={() => handleUseSuggestion(suggestion)} size="sm" className="flex-shrink-0 ml-2" disabled={isUsed}>
+                                            {isUsed ? 'Đã tạo' : 'Sử dụng'}
+                                        </Button>
                                     </div>
                                 </Card>
-                            ))}
+                            )})}
                         </div>
-                         <Button onClick={() => { setAiSuggestions(null); setAiPromoGoal(''); }} className="w-full mt-4" variant="secondary">Thử lại với mục tiêu khác</Button>
+                         <Button onClick={() => { setAiSuggestions(null); setAiPromoGoal(''); setUsedSuggestionCodes([]); }} className="w-full mt-4" variant="secondary">Thử lại với mục tiêu khác</Button>
                     </div>
                 )}
             </div>

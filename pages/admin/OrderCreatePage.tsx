@@ -257,7 +257,7 @@ export const OrderCreatePage: React.FC = () => {
     
         const applicablePromos = promotions.filter(p => {
             // Basic checks: active, in-store, date range, usage limit
-            if (!p.isActive || (p.applicableChannels && p.applicableChannels.length > 0 && !p.applicableChannels.includes('instore'))) return false;
+            if (p.status !== 'active' || (p.applicableChannels && p.applicableChannels.length > 0 && !p.applicableChannels.includes('instore'))) return false;
             if (p.startDate && new Date(p.startDate) > now) return false;
             if (p.endDate && new Date(p.endDate) < now) return false;
             if (p.usageLimit && p.timesUsed >= p.usageLimit) return false;
@@ -365,8 +365,8 @@ export const OrderCreatePage: React.FC = () => {
         setPromotionError("Mã khuyến mãi không hợp lệ, đã hết hạn, hoặc không áp dụng cho đơn hàng tại cửa hàng.");
         return;
     }
-    if (!promotion.isActive) {
-        setPromotionError("Mã khuyến mãi đã hết hiệu lực.");
+    if (promotion.status !== 'active') {
+        setPromotionError(`Mã khuyến mãi này hiện đang ở trạng thái "${promotion.status}" và không thể áp dụng.`);
         return;
     }
     if (promotion.startDate && new Date(promotion.startDate) > new Date()) {

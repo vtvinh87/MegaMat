@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useMemo, useEffect, FormEvent } from 'react';
 import { useData } from '../../../contexts/DataContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -162,7 +163,8 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
 
         const isChannelMatch = !p.applicableChannels || p.applicableChannels.length === 0 || p.applicableChannels.includes('online');
 
-        if (!isStoreMatch || !p.isActive || !isChannelMatch) return false;
+        // FIX: Replaced deprecated `!p.isActive` with `p.status !== 'active'` to check promotion status.
+        if (!isStoreMatch || p.status !== 'active' || !isChannelMatch) return false;
         
         if (p.startDate && new Date(p.startDate) > now) return false;
         if (p.endDate && new Date(p.endDate) < now) return false;

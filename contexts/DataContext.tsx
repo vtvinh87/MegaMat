@@ -1,6 +1,4 @@
 
-
-
 import { createContext, useContext } from 'react';
 import { 
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
@@ -80,10 +78,11 @@ export interface DataContextType {
   updateStoreProfile: (profileData: Partial<StoreProfile> & { ownerId: string; }, reason: string) => void;
   findStoreProfileByOwnerId: (ownerId: string) => StoreProfile | undefined;
   deleteStoreAndOwner: (ownerId: string, reason: string) => void;
-  addPromotion: (promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId'> & { isSystemWide?: boolean }) => void;
+  addPromotion: (promotionData: Omit<Promotion, 'id' | 'timesUsed' | 'ownerId' | 'status' | 'createdBy' | 'approvedBy' | 'approvedAt' | 'rejectionReason'> & { isSystemWide?: boolean, isActive?: boolean }) => void;
   updatePromotion: (promotionData: Promotion) => void;
   deletePromotion: (promotionId: string) => void;
-  // FIX: Update function signature to match implementation and usage in OrderCreatePage.tsx.
+  approvePromotion: (promotionId: string) => void;
+  rejectPromotion: (promotionId: string, reason: string) => void;
   findPromotionByCode: (code: string, forStoreOwnerId?: string, channel?: 'online' | 'instore') => Promotion | undefined;
   requestPromotionOptOut: (promotionId: string, reason: string) => void;
   respondToOptOutRequest: (promotionId: string, storeOwnerId: string, response: 'approved' | 'rejected', rejectionReason?: string) => void;
