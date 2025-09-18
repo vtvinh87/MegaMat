@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, ChangeEvent, FormEvent, useCallbac
 // FIX: Replaced useAppContext with useData and useAuth
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { Order, OrderStatus, VariableCost, VariableCostCategory, VariableCostInput, UserRole, FixedCostItem, ReportPeriod, ProfitChartDataPoint, FixedCostUpdateHistoryEntry, User } from '../../types';
+import { Order, OrderStatus, VariableCost, VariableCostCategory, VariableCostInput, UserRole, FixedCostItem, ReportPeriod, ProfitChartDataPoint, FixedCostUpdateHistoryEntry, User, PaymentStatus } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
@@ -373,6 +373,13 @@ const ReportsPage: React.FC = () => {
   const totalRevenue = useMemo(() => 
     filteredRevenueOrdersByPeriod.reduce((sum, order) => sum + order.totalAmount, 0)
   , [filteredRevenueOrdersByPeriod]);
+  
+  const actualRevenue = useMemo(() =>
+    filteredRevenueOrdersByPeriod
+      .filter(o => o.paymentStatus === PaymentStatus.PAID)
+      .reduce((sum, o) => sum + o.totalAmount, 0)
+  , [filteredRevenueOrdersByPeriod]);
+
   const totalRevenueOrdersCount = filteredRevenueOrdersByPeriod.length;
 
   const revenueByService = useMemo(() => {
@@ -768,10 +775,14 @@ Hãy bắt đầu phân tích của bạn:`;
       {activeSection === 'revenue' && (
         <Card>
           <SectionHeader title="Báo cáo Doanh thu" icon={<TrendingUp className="text-status-success"/>} />
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 text-center">
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 text-center">
                 <div className="p-4 bg-emerald-50 rounded-lg">
                     <p className="text-sm text-emerald-600 font-medium">Tổng doanh thu</p>
                     <p className="text-3xl font-bold text-emerald-700">{totalRevenue.toLocaleString('vi-VN')} VNĐ</p>
+                </div>
+                <div className="p-4 bg-green-50 rounded-lg">
+                    <p className="text-sm text-green-600 font-medium">Tổng thực thu</p>
+                    <p className="text-3xl font-bold text-green-700">{actualRevenue.toLocaleString('vi-VN')} VNĐ</p>
                 </div>
                 <div className="p-4 bg-sky-50 rounded-lg">
                     <p className="text-sm text-sky-600 font-medium">Tổng số đơn hàng</p>

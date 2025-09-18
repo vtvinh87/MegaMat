@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect, useCallback } from 'react'; 
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -633,10 +632,18 @@ const AdminDashboardPage: React.FC = () => {
     );
   }, [inventoryAdjustmentRequests, currentUser, acknowledgedRejectedRequests]);
 
-  const totalRevenue = orders
+  const isToday = (someDate: Date) => {
+    const today = new Date();
+    return someDate.getDate() === today.getDate() &&
+      someDate.getMonth() === today.getMonth() &&
+      someDate.getFullYear() === today.getFullYear();
+  };
+  const todaysOrders = orders.filter(o => isToday(new Date(o.createdAt)));
+
+  const totalRevenue = todaysOrders
       .filter(o => o.status !== OrderStatus.CANCELLED && o.status !== OrderStatus.DELETED_BY_ADMIN)
       .reduce((sum, o) => sum + o.totalAmount, 0);
-  const actualRevenue = orders
+  const actualRevenue = todaysOrders
       .filter(o => o.paymentStatus === PaymentStatus.PAID)
       .reduce((sum, o) => sum + o.totalAmount, 0);
 
@@ -675,8 +682,8 @@ const AdminDashboardPage: React.FC = () => {
 
 
   const quickStats: QuickStat[] = [
-    { title: 'Doanh thu', value: `${(totalRevenue / 1000).toFixed(0)}k`, link: '/admin/reports', icon: <TrendingUpIcon />, colorClass: 'text-indigo-700', iconBgClass: 'bg-indigo-100' },
-    { title: 'Thực thu', value: `${(actualRevenue / 1000).toFixed(0)}k`, link: '/admin/reports', icon: <DollarSignIcon />, colorClass: 'text-green-700', iconBgClass: 'bg-green-100' },
+    { title: 'Doanh thu (Hôm nay)', value: `${(totalRevenue / 1000).toFixed(0)}k`, link: '/admin/reports', icon: <TrendingUpIcon />, colorClass: 'text-indigo-700', iconBgClass: 'bg-indigo-100' },
+    { title: 'Thực thu (Hôm nay)', value: `${(actualRevenue / 1000).toFixed(0)}k`, link: '/admin/reports', icon: <DollarSignIcon />, colorClass: 'text-green-700', iconBgClass: 'bg-green-100' },
     { title: 'Đơn hàng chờ xử lý', value: pendingOrdersCount.toLocaleString('vi-VN'), link: '/admin/orders?status=PENDING', icon: <PackageIcon />, colorClass: 'text-status-warning-text', iconBgClass: 'bg-status-warning-bg' },
     { title: 'Đơn hàng đang xử lý', value: processingOrdersCount.toLocaleString('vi-VN'), link: '/admin/orders?status=PROCESSING', icon: <PackageIcon />, colorClass: 'text-status-info-text', iconBgClass: 'bg-status-info-bg' },
     { title: 'Tổng số khách hàng', value: customers.length.toLocaleString('vi-VN'), link: '/admin/customers', icon: <UsersIcon />, colorClass: 'text-status-success-text', iconBgClass: 'bg-status-success-bg' },
