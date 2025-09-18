@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useCallback, FormEvent, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-// FIX: Replaced useAppContext with useData and useAuth
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
-// FIX: Replaced deprecated Customer type with User.
-// FIX: Removed WashMethod import as it is deprecated.
-import { User, Order, OrderItem, OrderStatus, ServiceItem as AppServiceItem, UserRole, ScanHistoryEntry, Promotion, PaymentStatus } from '../../types'; // Renamed ServiceItem
+import { User, Order, OrderItem, OrderStatus, ServiceItem as AppServiceItem, UserRole, ScanHistoryEntry, Promotion, PaymentStatus, StoreProfile } from '../../types'; // Renamed ServiceItem
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { v4 as uuidv4 } from 'uuid';
-import { PlusCircleIcon, Trash2Icon, SaveIcon, XCircleIcon, Users, ShoppingCart, DollarSign, Clock, Edit3Icon, MessageSquareIcon, PrinterIcon, SearchIcon, PhoneIcon, RotateCcwIcon, AlertTriangleIcon, InfoIcon, CalendarDays as CalendarIcon, TagIcon } from 'lucide-react';
+import { PlusCircleIcon, Trash2Icon, SaveIcon, XCircleIcon, Users, ShoppingCart, DollarSign, Clock, Edit3Icon, MessageSquareIcon, PrinterIcon, SearchIcon, PhoneIcon, RotateCcwIcon, AlertTriangleIcon, InfoIcon, CalendarDays as CalendarIcon, TagIcon, CreditCardIcon } from 'lucide-react';
 import { Spinner } from '../../components/ui/Spinner';
 
 
@@ -26,21 +23,19 @@ interface LocalOrderItem {
 
 export const OrderCreatePage: React.FC = () => {
   const { id: editOrderId } = useParams<{ id?: string }>(); 
-  // FIX: Replaced useAppContext with useData and useAuth
   const { 
-    // FIX: Using `users` array instead of deprecated `customers`.
     users, 
     services: appContextServices,
     addOrder, 
     updateOrder, 
     findOrder, 
-    // FIX: `addUser` is used to add new customers (as Users).
     addUser: addNewGlobalCustomer, 
     addNotification,
     getCurrentUserOwnerId,
     findPromotionByCode,
     washMethods,
     promotions,
+    findStoreProfileByOwnerId,
   } = useData();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -51,7 +46,6 @@ export const OrderCreatePage: React.FC = () => {
   const [customerPhoneInput, setCustomerPhoneInput] = useState('');
   const [customerNameInput, setCustomerNameInput] = useState('');
   const [customerAddressInput, setCustomerAddressInput] = useState('');
-  // FIX: Replaced deprecated Customer type with User.
   const [resolvedCustomer, setResolvedCustomer] = useState<User | null>(null);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
   const [showNewCustomerFields, setShowNewCustomerFields] = useState(false);
@@ -63,17 +57,16 @@ export const OrderCreatePage: React.FC = () => {
   const [orderNotes, setOrderNotes] = useState('');
   const [manualEstimatedReturnTime, setManualEstimatedReturnTime] = useState('');
   
-  // State for return time warning modal
   const [isReturnTimeWarningModalOpen, setIsReturnTimeWarningModalOpen] = useState(false);
   const [returnTimeWarningMessage, setReturnTimeWarningMessage] = useState('');
   
-  // State for promotions
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedPromotion, setAppliedPromotion] = useState<Promotion | null>(null);
   const [promotionError, setPromotionError] = useState<string | null>(null);
 
+  const [isPaid, setIsPaid] = useState(false);
+  const [storeProfile, setStoreProfile] = useState<StoreProfile | null>(null);
 
-  // Ref for auto-focus
   const customerNameInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -89,6 +82,11 @@ export const OrderCreatePage: React.FC = () => {
 
 
   useEffect(() => {
+    const ownerId = getCurrentUserOwnerId();
+    if (ownerId) {
+        setStoreProfile(findStoreProfileByOwnerId(ownerId) || null);
+    }
+
     if (editOrderId) {
       const orderToEdit = findOrder(editOrderId);
       if (orderToEdit) {
@@ -109,11 +107,11 @@ export const OrderCreatePage: React.FC = () => {
         setResolvedCustomer(orderToEdit.customer);
         setCustomerPhoneInput(orderToEdit.customer.phone);
         setCustomerNameInput(orderToEdit.customer.name);
-        // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
         setCustomerAddressInput(orderToEdit.customer.addresses?.[0]?.street || '');
         setIsCustomerPhoneLocked(true); 
         setShowNewCustomerFields(false);
         setOrderNotes(orderToEdit.notes || '');
+        setIsPaid(orderToEdit.paymentStatus === PaymentStatus.PAID);
         
         if (orderToEdit.estimatedCompletionTime) {
             const d = new Date(orderToEdit.estimatedCompletionTime);
@@ -133,19 +131,22 @@ export const OrderCreatePage: React.FC = () => {
         navigate('/admin/orders');
       }
     } else {
+        // New order mode: set payment status based on store policy
+        const defaultIsPaid = storeProfile?.paymentSettings?.policy === 'prepay';
+        setIsPaid(defaultIsPaid);
+
       setIsEditMode(false); setEditingOrder(null); setCustomerPhoneInput(''); setCustomerNameInput('');
       setCustomerAddressInput(''); setResolvedCustomer(null); setShowNewCustomerFields(false);
       setIsCustomerPhoneLocked(false); setOrderItems([]); setEditReason(''); setOrderNotes('');
       setManualEstimatedReturnTime('');
     }
-  }, [editOrderId, findOrder, navigate, addNotification, currentUser, getCurrentUserOwnerId]);
+  }, [editOrderId, findOrder, navigate, addNotification, currentUser, getCurrentUserOwnerId, storeProfile, findStoreProfileByOwnerId]);
   
-  // Auto-focus on customer name input when new customer fields are shown
   useEffect(() => {
     if (showNewCustomerFields && !resolvedCustomer) {
       const timer = setTimeout(() => {
         customerNameInputRef.current?.focus();
-      }, 50); // Small delay to ensure the input is rendered
+      }, 50); 
       return () => clearTimeout(timer);
     }
   }, [showNewCustomerFields, resolvedCustomer]);
@@ -159,13 +160,11 @@ export const OrderCreatePage: React.FC = () => {
     setResolvedCustomer(null);
     setShowNewCustomerFields(false);
     setGlobalError(null);
-    await new Promise(res => setTimeout(res, 300)); // Simulate API delay
-    // FIX: Search for users with the role of Customer.
+    await new Promise(res => setTimeout(res, 300)); 
     const foundCustomer = users.find(c => c.role === UserRole.CUSTOMER && c.phone === customerPhoneInput.trim());
     if (foundCustomer) {
       setResolvedCustomer(foundCustomer);
       setCustomerNameInput(foundCustomer.name);
-      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
       setCustomerAddressInput(foundCustomer.addresses?.[0]?.street || '');
       setIsCustomerPhoneLocked(true);
       addNotification({message: `Đã tìm thấy khách hàng: ${foundCustomer.name}`, type: 'success'});
@@ -180,7 +179,7 @@ export const OrderCreatePage: React.FC = () => {
   
   const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      e.preventDefault(); // Prevent default form submission behavior
+      e.preventDefault(); 
       handleCustomerPhoneSearch();
     }
   };
@@ -250,29 +249,25 @@ export const OrderCreatePage: React.FC = () => {
     }, 0);
   }, [orderItems, appContextServices]);
   
-    // --- START: New Promotion Logic ---
     const availablePromotions = useMemo(() => {
         const now = new Date();
-        const today = now.getDay(); // 0 for Sunday
+        const today = now.getDay(); 
     
         const customerForCheck = resolvedCustomer || editingOrder?.customer;
     
         const applicablePromos = promotions.filter(p => {
-            // Basic checks: active, in-store, date range, usage limit
             if (p.status !== 'active' || (p.applicableChannels && p.applicableChannels.length > 0 && !p.applicableChannels.includes('instore'))) return false;
             if (p.startDate && new Date(p.startDate) > now) return false;
             if (p.endDate && new Date(p.endDate) < now) return false;
             if (p.usageLimit && p.timesUsed >= p.usageLimit) return false;
             
-            // Day of week
             if (p.applicableDaysOfWeek && p.applicableDaysOfWeek.length > 0 && !p.applicableDaysOfWeek.includes(today)) {
                 return false;
             }
     
-            // Customer usage limit
             if (p.usageLimitPerCustomer) {
                 if (!customerForCheck) {
-                    return false; // Can't check a per-customer promo without a customer
+                    return false; 
                 }
                 const timesUsedByCustomer = (p.usedByCustomerIds || []).filter(id => id === customerForCheck.id).length;
                 if (timesUsedByCustomer >= p.usageLimitPerCustomer) {
@@ -280,12 +275,10 @@ export const OrderCreatePage: React.FC = () => {
                 }
             }
             
-            // Order value check
             if (p.minOrderAmount && subtotal < p.minOrderAmount) {
                 return false;
             }
             
-            // Item-specific checks (only if items exist in cart)
             if (orderItems.length > 0) {
                 if (p.applicableServiceIds && p.applicableServiceIds.length > 0) {
                     const hasApplicableService = orderItems.some(localItem => {
@@ -301,26 +294,24 @@ export const OrderCreatePage: React.FC = () => {
                     if (!hasApplicableWashMethod) return false;
                 }
             } else if ((p.applicableServiceIds && p.applicableServiceIds.length > 0) || (p.applicableWashMethodIds && p.applicableWashMethodIds.length > 0)) {
-                // If promo requires specific items but cart is empty, don't show it
                 return false;
             }
     
             return true;
         });
     
-        // Calculate real discount for each applicable promo and sort them
         return applicablePromos.map(promo => {
             let discount = 0;
             if (promo.discountType === 'fixed_amount') {
                 discount = Math.min(subtotal, promo.discountValue);
-            } else { // percentage
+            } else { 
                 const calculated = subtotal * (promo.discountValue / 100);
                 discount = promo.maxDiscountAmount ? Math.min(calculated, promo.maxDiscountAmount) : calculated;
             }
             return { ...promo, calculatedDiscount: discount };
         }).sort((a, b) => b.calculatedDiscount - a.calculatedDiscount);
     
-    }, [promotions, subtotal, resolvedCustomer, orderItems, appContextServices, washMethods, isEditMode, editingOrder]);
+    }, [promotions, subtotal, resolvedCustomer, orderItems, appContextServices, washMethods, editingOrder]);
 
     const promotionOptions = useMemo(() => {
         return [
@@ -331,13 +322,11 @@ export const OrderCreatePage: React.FC = () => {
             }))
         ];
     }, [availablePromotions]);
-    // --- END: New Promotion Logic ---
-
 
   const promotionDiscount = useMemo(() => {
     if (!appliedPromotion) return 0;
     if (appliedPromotion.minOrderAmount && subtotal < appliedPromotion.minOrderAmount) {
-        return 0; // Don't apply if subtotal is too low
+        return 0; 
     }
     if (appliedPromotion.discountType === 'percentage') {
         let discount = (subtotal * appliedPromotion.discountValue) / 100;
@@ -347,7 +336,7 @@ export const OrderCreatePage: React.FC = () => {
         return discount;
     }
     if (appliedPromotion.discountType === 'fixed_amount') {
-        return Math.min(subtotal, appliedPromotion.discountValue); // Can't discount more than the subtotal
+        return Math.min(subtotal, appliedPromotion.discountValue); 
     }
     return 0;
   }, [appliedPromotion, subtotal]);
@@ -482,7 +471,6 @@ export const OrderCreatePage: React.FC = () => {
     let finalCustomer: User | null = null;
     if (isEditMode && editingOrder) {
         finalCustomer = editingOrder.customer;
-        // FIX: 'address' is deprecated, using 'addresses' array. This logic updates the first address or creates one.
         const currentStreet = finalCustomer.addresses?.[0]?.street || '';
         if (finalCustomer.name !== customerNameInput.trim() || currentStreet !== customerAddressInput.trim()) {
             const updatedAddresses = finalCustomer.addresses ? [...finalCustomer.addresses] : [];
@@ -498,20 +486,17 @@ export const OrderCreatePage: React.FC = () => {
         if (resolvedCustomer) finalCustomer = resolvedCustomer;
         else if (showNewCustomerFields) {
             if (!customerNameInput.trim()) { setGlobalError('Vui lòng nhập tên khách hàng mới.'); return; }
-            // FIX: Create a proper User object for the new customer.
+            if (!customerAddressInput.trim()) { setGlobalError('Địa chỉ là bắt buộc đối với khách hàng mới.'); return; }
             const newCustomerData: Omit<User, 'id'> = { 
                 name: customerNameInput.trim(), 
                 phone: customerPhoneInput.trim(), 
-                // FIX: Object literal may only specify known properties, but 'address' does not exist in type 'Omit<User, "id">'. Did you mean to write 'addresses'?
                 addresses: customerAddressInput.trim() ? [{ id: uuidv4(), label: 'Mặc định', street: customerAddressInput.trim(), isDefault: true }] : undefined,
                 loyaltyPoints: 0, 
                 role: UserRole.CUSTOMER,
-                username: customerPhoneInput.trim(), // Use phone as username
-                password: '123123', // Default password for admin-created customers
+                username: customerPhoneInput.trim(), 
+                password: '123123', 
             };
-            // FIX: The second argument for `addUser` should be `storeProfileData` (an object) or omitted, not a string. For a customer, it should be omitted.
             const createdUser = await addNewGlobalCustomer(newCustomerData);
-            // Find the newly created customer to attach to the order.
             finalCustomer = createdUser || { ...newCustomerData, id: uuidv4() };
 
         } else { setGlobalError('Không tìm thấy thông tin khách hàng. Vui lòng tìm hoặc tạo mới.'); return; }
@@ -575,6 +560,7 @@ export const OrderCreatePage: React.FC = () => {
             customer: finalCustomer, 
             items: finalOrderItems,
             totalAmount: totalAmount, 
+            paymentStatus: isPaid ? PaymentStatus.PAID : PaymentStatus.UNPAID,
             appliedPromotionId: appliedPromotion?.id,
             promotionDiscountAmount: promotionDiscount > 0 ? promotionDiscount : undefined,
             estimatedCompletionTime: finalEstimatedCompletionTime, 
@@ -604,13 +590,12 @@ export const OrderCreatePage: React.FC = () => {
         }
 
         const newOrderId = `DH-${uuidv4().slice(0, 6).toUpperCase()}`;
-        // FIX: Add paymentStatus to new order payload
         const newOrderPayload: Order = {
             id: newOrderId,
             customer: finalCustomer,
             items: finalOrderItems, 
             status: OrderStatus.PENDING,
-            paymentStatus: PaymentStatus.UNPAID,
+            paymentStatus: isPaid ? PaymentStatus.PAID : PaymentStatus.UNPAID,
             createdAt: now,
             receivedAt: now, 
             estimatedCompletionTime: finalEstimatedCompletionTime,
@@ -627,14 +612,14 @@ export const OrderCreatePage: React.FC = () => {
         };
         addOrder(newOrderPayload); 
         addNotification({ message: `Đơn hàng mới ${newOrderId} đã được tạo. Sẵn sàng để in.`, type: 'success' });
-        navigate(`/admin/orders/print/${newOrderId}`);
+        navigate('/admin/orders', { state: { newOrderId, customerName: finalCustomer.name }});
     }
   };
   
   const isConfirmingOrderMode = isEditMode && editingOrder?.status === OrderStatus.WAITING_FOR_CONFIRMATION;
   const pageTitle = isConfirmingOrderMode ? `Xác nhận Đơn hàng: ${editingOrder?.id || ''}` : (isEditMode ? `Chỉnh sửa Đơn hàng: ${editingOrder?.id || ''}` : "Tạo đơn hàng mới");
-  const saveButtonText = isConfirmingOrderMode ? "Xác nhận & Chuyển xử lý" : (isEditMode ? "Lưu thay đổi" : "Lưu và In hóa đơn");
-  const SaveButtonIcon = isEditMode ? SaveIcon : PrinterIcon;
+  const saveButtonText = isConfirmingOrderMode ? "Xác nhận & Chuyển xử lý" : (isEditMode ? "Lưu thay đổi" : "Lưu và Tới danh sách");
+  const SaveButtonIcon = isEditMode ? SaveIcon : SaveIcon;
 
   const renderServiceItemRow = (item: LocalOrderItem, index: number) => {
     const currentSelectedServiceInfo = appContextServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
@@ -644,7 +629,7 @@ export const OrderCreatePage: React.FC = () => {
             const washMethod = washMethods.find(wm => wm.id === s.washMethodId);
             return { value: s.washMethodId, label: `${washMethod?.name || s.washMethodId} (${s.price.toLocaleString('vi-VN')} VNĐ)`};
         })
-        .filter((option, idx, self) => self.findIndex(o => o.value === option.value) === idx); // Ensure unique wash methods
+        .filter((option, idx, self) => self.findIndex(o => o.value === option.value) === idx); 
 
     const lineTotal = currentSelectedServiceInfo ? Math.max(currentSelectedServiceInfo.price * item.quantity, currentSelectedServiceInfo.minPrice || 0) : 0;
 
@@ -748,7 +733,14 @@ export const OrderCreatePage: React.FC = () => {
                     disabled={isEditMode && isCustomerPhoneLocked}
                     ref={customerNameInputRef}
                   />
-                  <Input label="Địa chỉ" name="customerAddress" value={customerAddressInput} onChange={e => setCustomerAddressInput(e.target.value)} disabled={isEditMode && isCustomerPhoneLocked} />
+                  <Input 
+                    label={showNewCustomerFields && !resolvedCustomer ? "Địa chỉ*" : "Địa chỉ"} 
+                    name="customerAddress" 
+                    value={customerAddressInput} 
+                    onChange={e => setCustomerAddressInput(e.target.value)} 
+                    required={showNewCustomerFields && !resolvedCustomer}
+                    disabled={isEditMode && isCustomerPhoneLocked} 
+                  />
                   {showNewCustomerFields && !resolvedCustomer && <p className="text-xs text-status-info">Đây là khách hàng mới, thông tin sẽ được lưu lại.</p>}
               </div>
             )}
@@ -765,18 +757,18 @@ export const OrderCreatePage: React.FC = () => {
             {uniqueServiceGroupOptions.length === 0 && <p className="text-xs text-text-muted mt-1">Chưa có dịch vụ nào được định nghĩa trong hệ thống.</p>}
           </fieldset>
 
-          <fieldset className="p-4 border border-border-base rounded-lg">
+           <fieldset className="p-4 border border-border-base rounded-lg">
             <legend className="text-lg font-semibold text-text-heading mb-3 px-2 flex items-center -ml-2">
-                <TagIcon size={22} className="mr-2 text-brand-primary"/>Khuyến mãi & Thanh toán
+                <CreditCardIcon size={22} className="mr-2 text-brand-primary"/>Khuyến mãi & Thanh toán
             </legend>
             <div className="space-y-3">
                  <Select
                     label="Khuyến mãi có thể áp dụng (ưu đãi tốt nhất xếp trên)"
                     options={promotionOptions}
-                    onChange={(e) => setVoucherCode(e.target.value)}
+                    onChange={(e) => { setVoucherCode(e.target.value); handleApplyVoucher(); }}
                     disabled={promotionOptions.length <= 1}
                     wrapperClassName="w-full"
-                    value={appliedPromotion ? '' : voucherCode} // Clear selection visually if a code is manually typed
+                    value={appliedPromotion?.code || ''} 
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                     <Input 
@@ -807,6 +799,12 @@ export const OrderCreatePage: React.FC = () => {
                     {promotionDiscount > 0 && 
                         <p className="flex justify-between text-status-success-text"><span>Giảm giá:</span> <span>-{promotionDiscount.toLocaleString('vi-VN')} VNĐ</span></p>
                     }
+                     <div className="pt-2">
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" checked={isPaid} onChange={e => setIsPaid(e.target.checked)} className="h-4 w-4 rounded text-brand-primary focus:ring-brand-primary-focus" />
+                            <span className="font-medium text-text-body">Đã thanh toán</span>
+                        </label>
+                    </div>
                 </div>
                 <div className="flex justify-between items-center sm:border-l sm:border-border-base sm:pl-4">
                     <span className="font-semibold text-lg text-text-heading">Tổng cộng:</span>
@@ -874,6 +872,3 @@ export const OrderCreatePage: React.FC = () => {
     </>
   );
 };
-
-// FIX: Changed export to a named export to match the import in App.tsx.
-// export default OrderCreatePage;

@@ -1,17 +1,13 @@
-
-
-
-
 import React, { useMemo, useState, useEffect, useCallback } from 'react'; 
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
-import { UserRole, Notification, User, OrderStatus, Promotion, InventoryAdjustmentRequest, CrmTask } from '../../types';
+import { UserRole, Notification, User, OrderStatus, Promotion, InventoryAdjustmentRequest, CrmTask, PaymentStatus } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
-import { PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, AlertTriangleIcon, ArrowRightIcon, Settings2Icon, CheckCircle, InfoIcon, ActivityIcon, BriefcaseIcon, PlusCircleIcon, BuildingIcon, LineChartIcon, PieChartIcon, SparklesIcon, MessageSquareIcon, MessageCircleIcon, RefreshCwIcon, MegaphoneIcon, ShieldAlertIcon, XCircleIcon, XIcon, ClipboardListIcon, UserPlusIcon, StarIcon, ThumbsUp, ThumbsDown, Lightbulb } from 'lucide-react';
+import { PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, AlertTriangleIcon, ArrowRightIcon, Settings2Icon, CheckCircle, InfoIcon, ActivityIcon, BriefcaseIcon, PlusCircleIcon, BuildingIcon, LineChartIcon, PieChartIcon, SparklesIcon, MessageSquareIcon, MessageCircleIcon, RefreshCwIcon, MegaphoneIcon, ShieldAlertIcon, XCircleIcon, XIcon, ClipboardListIcon, UserPlusIcon, StarIcon, ThumbsUp, ThumbsDown, Lightbulb, DollarSignIcon, TrendingUpIcon } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Spinner } from '../../components/ui/Spinner';
@@ -97,7 +93,6 @@ const CrmAnalyticsWidget: React.FC = () => {
     const crmMetrics = useMemo(() => {
         const customers = users.filter(u => u.role === UserRole.CUSTOMER);
         
-        // New vs Returning this month
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const ordersThisMonth = orders.filter(o => new Date(o.createdAt) >= startOfMonth);
@@ -109,10 +104,8 @@ const CrmAnalyticsWidget: React.FC = () => {
         }).length;
         const returningCustomerCount = customerIdsThisMonth.length - newCustomerCount;
         
-        // VIP Customers
         const vipCustomerCount = customers.filter(c => c.tags?.includes('VIP')).length;
 
-        // Interaction Types
         const interactionCounts = customers
             .flatMap(c => c.interactionHistory || [])
             .reduce((acc, interaction) => {
@@ -247,8 +240,6 @@ const DashboardCharts = () => {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              {/* FIX: The 'percent' prop from recharts can be undefined. A fallback of 0 is provided to ensure the multiplication is safe. */}
-// FIX: The 'percent' prop from recharts can be undefined. A fallback of 0 is provided to ensure the multiplication is safe.
               <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}>
                 {orderStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name as keyof typeof PIE_COLORS]} />
@@ -317,7 +308,8 @@ const AIFeedbackAnalysis: React.FC = () => {
         config: { responseMimeType: "application/json", responseSchema: schema },
       });
 
-      setAnalysis(JSON.parse(response.text));
+      // FIX: Added .trim() to response.text to handle potential whitespace before JSON parsing.
+      setAnalysis(JSON.parse(response.text.trim()));
 
     } catch (err) {
       console.error("Error analyzing feedback with AI:", err);
@@ -378,7 +370,6 @@ const AIFeedbackAnalysis: React.FC = () => {
 
 
 const AdminDashboardPage: React.FC = () => {
-  // --- ALL HOOKS CALLED AT THE TOP LEVEL ---
   const { currentUser } = useAuth();
   const { 
     orders, suppliers, inventory, users, notifications, findUserById,
@@ -394,20 +385,6 @@ const AdminDashboardPage: React.FC = () => {
   const [optOutRequestForModal, setOptOutRequestForModal] = useState<{ promo: Promotion; request: NonNullable<Promotion['optOutRequests']>[0] } | null>(null);
   const [isRejectionReasonModalOpen, setIsRejectionReasonModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-
-  const topServices = useMemo(() => {
-    const serviceCounts: { [key: string]: { name: string; count: number } } = {};
-    orders.forEach(order => {
-      order.items.forEach(item => {
-        const serviceName = item.serviceItem.name;
-        if (!serviceCounts[serviceName]) {
-          serviceCounts[serviceName] = { name: serviceName, count: 0 };
-        }
-        serviceCounts[serviceName].count += item.quantity;
-      });
-    });
-    return Object.values(serviceCounts).sort((a, b) => b.count - a.count).slice(0, 5);
-  }, [orders]);
 
   const recentActivities = useMemo(() => {
     return notifications
@@ -459,7 +436,6 @@ const AdminDashboardPage: React.FC = () => {
     }
   }, [promotions, currentUser, acknowledgedOptOutRequests]);
 
-  // --- HANDLER FUNCTIONS ---
   const handleAcknowledgeAndClosePromoModal = (promoId: string) => {
     acknowledgeSystemPromo(promoId);
     setPromoForModal(null);
@@ -479,13 +455,12 @@ const AdminDashboardPage: React.FC = () => {
     setRejectionReason('');
   };
 
-  // --- RENDER LOGIC ---
   const isChairman = currentUser?.role === UserRole.CHAIRMAN;
   const isOwnerOrManager = currentUser && (currentUser.role === UserRole.OWNER || currentUser.role === UserRole.MANAGER);
 
   interface QuickStat {
     title: string;
-    value: number | string;
+    value: string;
     link: string;
     icon: React.ReactNode;
     colorClass: string; 
@@ -493,10 +468,18 @@ const AdminDashboardPage: React.FC = () => {
   }
   
   if (isChairman) {
+    const totalRevenue = orders
+        .filter(o => o.status !== OrderStatus.CANCELLED && o.status !== OrderStatus.DELETED_BY_ADMIN)
+        .reduce((sum, o) => sum + o.totalAmount, 0);
+    const actualRevenue = orders
+        .filter(o => o.paymentStatus === PaymentStatus.PAID)
+        .reduce((sum, o) => sum + o.totalAmount, 0);
+
     const chairmanQuickStats: QuickStat[] = [
-       { title: 'Tổng ĐH toàn chuỗi', value: orders.length, link: '#', icon: <PackageIcon />, colorClass: 'text-status-info-text', iconBgClass: 'bg-status-info-bg' },
-       { title: 'Tổng tồn kho toàn chuỗi', value: inventory.length, link: '#', icon: <BarChart2Icon />, colorClass: 'text-brand-primary', iconBgClass: 'bg-blue-100' },
-       { title: 'Tổng số Chủ Cửa hàng', value: users.filter(u=> u.role === UserRole.OWNER).length, link: '/admin/users', icon: <UsersIcon />, colorClass: 'text-status-success-text', iconBgClass: 'bg-status-success-bg' },
+       { title: 'Doanh thu (Toàn chuỗi)', value: `${(totalRevenue / 1000000).toFixed(2)} tr`, link: '/admin/reports', icon: <TrendingUpIcon />, colorClass: 'text-indigo-700', iconBgClass: 'bg-indigo-100' },
+       { title: 'Thực thu (Toàn chuỗi)', value: `${(actualRevenue / 1000000).toFixed(2)} tr`, link: '/admin/reports', icon: <DollarSignIcon />, colorClass: 'text-green-700', iconBgClass: 'bg-green-100' },
+       { title: 'Tổng ĐH toàn chuỗi', value: orders.length.toLocaleString('vi-VN'), link: '#', icon: <PackageIcon />, colorClass: 'text-status-info-text', iconBgClass: 'bg-status-info-bg' },
+       { title: 'Tổng số Chủ Cửa hàng', value: users.filter(u=> u.role === UserRole.OWNER).length.toLocaleString('vi-VN'), link: '/admin/users', icon: <UsersIcon />, colorClass: 'text-purple-700', iconBgClass: 'bg-purple-100' },
     ];
 
     return (
@@ -504,7 +487,7 @@ const AdminDashboardPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-text-heading">Bảng điều khiển Chủ tịch</h1>
         <p className="text-text-body">Chào mừng, {currentUser?.name}. Tại đây bạn có thể quản lý các Chủ cửa hàng và theo dõi hoạt động chung của chuỗi.</p>
         
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {chairmanQuickStats.map(stat => (
               <Card key={stat.title} className={`border-l-4 ${stat.colorClass.replace('text-', 'border-')}`} contentClassName="!p-0">
                 <Link to={stat.link} className="block hover:bg-bg-surface-hover p-5 rounded-xl">
@@ -641,13 +624,19 @@ const AdminDashboardPage: React.FC = () => {
   const pendingInventoryRequestsCount = useMemo(() => inventoryAdjustmentRequests.filter(req => req.status === 'pending').length, [inventoryAdjustmentRequests]);
   const unacknowledgedRejectedRequests = useMemo(() => {
     if (!currentUser) return [];
-    // Show rejected requests created BY the current user that have NOT been acknowledged
     return inventoryAdjustmentRequests.filter(
       req => req.status === 'rejected' && 
              req.requestedByUserId === currentUser.id &&
              !acknowledgedRejectedRequests.includes(req.id)
     );
   }, [inventoryAdjustmentRequests, currentUser, acknowledgedRejectedRequests]);
+
+  const totalRevenue = orders
+      .filter(o => o.status !== OrderStatus.CANCELLED && o.status !== OrderStatus.DELETED_BY_ADMIN)
+      .reduce((sum, o) => sum + o.totalAmount, 0);
+  const actualRevenue = orders
+      .filter(o => o.paymentStatus === PaymentStatus.PAID)
+      .reduce((sum, o) => sum + o.totalAmount, 0);
 
 
   const pendingPromotionsForApprovalCount = useMemo(() => {
@@ -661,17 +650,14 @@ const AdminDashboardPage: React.FC = () => {
       }
       
       const creator = findUserById(p.createdBy || '');
-      // If no creator, it's a data issue, but we shouldn't show it for approval
       if (!creator) {
         return false;
       }
 
-      // Chairman can approve any pending promotion (as per the approval logic)
       if (currentUser.role === UserRole.CHAIRMAN) {
         return true;
       }
 
-      // Owner can approve promotions created by users they manage
       if (currentUser.role === UserRole.OWNER) {
         return creator.managedBy === currentUser.id;
       }
@@ -687,14 +673,14 @@ const AdminDashboardPage: React.FC = () => {
 
 
   const quickStats: QuickStat[] = [
-    { title: 'Đơn hàng chờ xác nhận', value: waitingForConfirmationCount, link: '/admin/orders?status=WAITING_FOR_CONFIRMATION', icon: <MessageSquareIcon />, colorClass: 'text-purple-700', iconBgClass: 'bg-purple-100' },
-    { title: 'Đơn hàng chờ xử lý', value: pendingOrdersCount, link: '/admin/orders?status=PENDING', icon: <PackageIcon />, colorClass: 'text-status-warning-text', iconBgClass: 'bg-status-warning-bg' },
-    { title: 'Đơn hàng đang xử lý', value: processingOrdersCount, link: '/admin/orders?status=PROCESSING', icon: <PackageIcon />, colorClass: 'text-status-info-text', iconBgClass: 'bg-status-info-bg' },
-    { title: 'Tổng số khách hàng', value: customers.length, link: '/admin/customers', icon: <UsersIcon />, colorClass: 'text-status-success-text', iconBgClass: 'bg-status-success-bg' },
-    { title: 'Mặt hàng tồn kho', value: inventory.length, link: '/admin/inventory', icon: <BarChart2Icon />, colorClass: 'text-brand-primary', iconBgClass: 'bg-blue-100' },
+    { title: 'Doanh thu', value: `${(totalRevenue / 1000).toFixed(0)}k`, link: '/admin/reports', icon: <TrendingUpIcon />, colorClass: 'text-indigo-700', iconBgClass: 'bg-indigo-100' },
+    { title: 'Thực thu', value: `${(actualRevenue / 1000).toFixed(0)}k`, link: '/admin/reports', icon: <DollarSignIcon />, colorClass: 'text-green-700', iconBgClass: 'bg-green-100' },
+    { title: 'Đơn hàng chờ xử lý', value: pendingOrdersCount.toLocaleString('vi-VN'), link: '/admin/orders?status=PENDING', icon: <PackageIcon />, colorClass: 'text-status-warning-text', iconBgClass: 'bg-status-warning-bg' },
+    { title: 'Đơn hàng đang xử lý', value: processingOrdersCount.toLocaleString('vi-VN'), link: '/admin/orders?status=PROCESSING', icon: <PackageIcon />, colorClass: 'text-status-info-text', iconBgClass: 'bg-status-info-bg' },
+    { title: 'Tổng số khách hàng', value: customers.length.toLocaleString('vi-VN'), link: '/admin/customers', icon: <UsersIcon />, colorClass: 'text-status-success-text', iconBgClass: 'bg-status-success-bg' },
   ];
 
-  const hasAlerts = lowStockItemsCount > 0 || pendingMaterialOrdersCount > 0 || pendingPromotionsForApprovalCount > 0 || pendingManagerReportsCount > 0 || pendingInventoryRequestsCount > 0 || unacknowledgedRejectedRequests.length > 0;
+  const hasAlerts = lowStockItemsCount > 0 || pendingMaterialOrdersCount > 0 || pendingPromotionsForApprovalCount > 0 || pendingManagerReportsCount > 0 || pendingInventoryRequestsCount > 0 || unacknowledgedRejectedRequests.length > 0 || waitingForConfirmationCount > 0;
 
   return (
     <div className="space-y-6">
@@ -704,6 +690,12 @@ const AdminDashboardPage: React.FC = () => {
         {hasAlerts && (
             <Card title="Cảnh báo & Việc cần làm" icon={<AlertTriangleIcon size={20} className="text-status-warning"/>} className="border-l-4 border-status-warning !bg-status-warning-bg/60">
                 <ul className="space-y-3 text-sm font-medium">
+                    {waitingForConfirmationCount > 0 && (
+                        <li className="flex items-start text-purple-700">
+                            <ArrowRightIcon size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
+                            <div><Link to="/admin/orders?status=WAITING_FOR_CONFIRMATION" className="hover:underline">Có <strong>{waitingForConfirmationCount}</strong> đơn hàng do khách tạo đang chờ bạn xác nhận.</Link></div>
+                        </li>
+                    )}
                     {lowStockItemsCount > 0 && (
                         <li className="flex items-start text-status-warning-text">
                             <ArrowRightIcon size={16} className="mr-2 mt-0.5 flex-shrink-0"/>

@@ -6,8 +6,9 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { SettingsIcon, SaveIcon, PlusCircleIcon, Trash2Icon, MapPinIcon, ClockIcon, AlertTriangleIcon, AwardIcon } from 'lucide-react';
+import { SettingsIcon, SaveIcon, PlusCircleIcon, Trash2Icon, MapPinIcon, ClockIcon, AlertTriangleIcon, AwardIcon, CreditCardIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Select } from '../../components/ui/Select';
 
 const StoreSettingsPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -24,6 +25,9 @@ const StoreSettingsPage: React.FC = () => {
   const [loyaltyAccrualRate, setLoyaltyAccrualRate] = useState<number | string>('');
   const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState<number | string>('');
 
+  // State for payment settings
+  const [paymentPolicy, setPaymentPolicy] = useState<'prepay' | 'postpay'>('postpay');
+
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [saveReason, setSaveReason] = useState('');
 
@@ -39,6 +43,7 @@ const StoreSettingsPage: React.FC = () => {
         setLoyaltyEnabled(profile.loyaltySettings?.enabled || false);
         setLoyaltyAccrualRate(profile.loyaltySettings?.accrualRate ?? '');
         setLoyaltyRedemptionRate(profile.loyaltySettings?.redemptionRate ?? '');
+        setPaymentPolicy(profile.paymentSettings?.policy || 'postpay');
       }
     }
   }, [ownerId, findStoreProfileByOwnerId]);
@@ -49,7 +54,9 @@ const StoreSettingsPage: React.FC = () => {
     const originalLocations = storeProfile.pickupLocations || [];
     const originalTime = storeProfile.defaultProcessingTimeHours ?? '';
     const originalLoyalty = storeProfile.loyaltySettings || { enabled: false, accrualRate: '', redemptionRate: '' };
+    const originalPaymentPolicy = storeProfile.paymentSettings?.policy || 'postpay';
     
+    if (paymentPolicy !== originalPaymentPolicy) return true;
     if (Number(defaultProcessingTime) !== Number(originalTime)) return true;
     if (loyaltyEnabled !== originalLoyalty.enabled) return true;
     if (Number(loyaltyAccrualRate) !== Number(originalLoyalty.accrualRate)) return true;
@@ -59,7 +66,7 @@ const StoreSettingsPage: React.FC = () => {
     const sortedOriginal = [...originalLocations].sort();
     const sortedCurrent = [...pickupLocations].sort();
     return sortedOriginal.some((loc, index) => loc !== sortedCurrent[index]);
-  }, [storeProfile, pickupLocations, defaultProcessingTime, loyaltyEnabled, loyaltyAccrualRate, loyaltyRedemptionRate]);
+  }, [storeProfile, pickupLocations, defaultProcessingTime, loyaltyEnabled, loyaltyAccrualRate, loyaltyRedemptionRate, paymentPolicy]);
 
   if (!currentUser || (currentUser.role !== UserRole.OWNER && currentUser.role !== UserRole.MANAGER)) {
     // This check is belt-and-suspenders as routing should prevent this.
@@ -96,7 +103,11 @@ const StoreSettingsPage: React.FC = () => {
         enabled: loyaltyEnabled,
         accrualRate: Number(loyaltyAccrualRate) || 0,
         redemptionRate: Number(loyaltyRedemptionRate) || 0,
-      }
+        tiers: storeProfile.loyaltySettings?.tiers, // Preserve existing tiers
+      },
+      paymentSettings: {
+        policy: paymentPolicy,
+      },
     };
     
     updateStoreProfile(updates, saveReason);
@@ -104,6 +115,11 @@ const StoreSettingsPage: React.FC = () => {
     setIsReasonModalOpen(false);
     setSaveReason('');
   };
+
+  const paymentPolicyOptions = [
+    { value: 'postpay', label: 'Thanh toán khi trả đồ' },
+    { value: 'prepay', label: 'Yêu cầu thanh toán trước' }
+  ];
 
   return (
     <>
@@ -117,6 +133,17 @@ const StoreSettingsPage: React.FC = () => {
         }
       >
         <div className="space-y-8">
+          {/* Payment Settings */}
+          <Card title="Cài đặt Thanh toán" icon={<CreditCardIcon size={20} />} className="bg-bg-subtle">
+            <p className="text-sm text-text-muted mb-4">Chọn chính sách thanh toán mặc định khi nhân viên tạo đơn hàng mới.</p>
+            <Select
+              label="Chính sách thanh toán"
+              options={paymentPolicyOptions}
+              value={paymentPolicy}
+              onChange={e => setPaymentPolicy(e.target.value as 'prepay' | 'postpay')}
+            />
+          </Card>
+          
           {/* Loyalty Program Setting */}
           <Card title="Chương trình Khách hàng Thân thiết" icon={<AwardIcon size={20} />} className="bg-bg-subtle">
             <p className="text-sm text-text-muted mb-4">Kích hoạt và cấu hình chương trình tích điểm cho khách hàng.</p>

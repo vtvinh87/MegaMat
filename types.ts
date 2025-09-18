@@ -1,4 +1,5 @@
 
+
 // FIX: Removed self-import of WashMethodDefinition.
 export interface LoyaltyTier {
   name: string; // 'Bronze', 'Silver', 'Gold'
@@ -421,6 +422,10 @@ export interface StoreProfile {
     redemptionRate: number; // How many VND 1 point is worth (e.g., 1000)
     tiers?: LoyaltyTier[];
   };
+  // New: Payment Settings
+  paymentSettings?: {
+    policy: 'prepay' | 'postpay'; // 'Yêu cầu thanh toán trước' | 'Thanh toán khi trả đồ'
+  };
 }
 // --- End of Store Profile Interface ---
 
@@ -593,7 +598,7 @@ export interface AppContextType extends AppData {
   updateInventoryItem: (item: InventoryItem, reason: string) => void; // Will be deprecated
   requestInventoryAdjustment: (itemId: string, requestedQuantity: number, reason: string) => void;
   approveInventoryAdjustment: (requestId: string) => void;
-  rejectInventoryAdjustment: (requestId: string, rejectionReason: string) => void;
+  rejectInventoryAdjustment: (requestId: string, rejectionReason?: string) => void;
   acknowledgeRejectedRequest: (requestId: string) => void;
   acknowledgeAllRejectedRequestsForItem: (itemId: string) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read' | 'ownerId'> & { showToast?: boolean }) => void; // ownerId will be set by context

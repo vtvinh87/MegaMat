@@ -109,6 +109,9 @@ export const MOCK_STORE_PROFILES: StoreProfile[] = [
         { name: 'Bạch kim', minSpend: 15000000, discountPercentage: 15, benefits: ["Giặt khô 1 bộ vest miễn phí/tháng"] }
       ]
     },
+    paymentSettings: {
+      policy: 'postpay', // Thanh toán sau
+    },
   },
   { 
     ownerId: ownerIdStoreB, 
@@ -122,6 +125,9 @@ export const MOCK_STORE_PROFILES: StoreProfile[] = [
       enabled: false,
       accrualRate: 20000,
       redemptionRate: 500,
+    },
+    paymentSettings: {
+      policy: 'prepay', // Thanh toán trước
     },
   },
 ];
@@ -277,7 +283,7 @@ const createDemoOrders = (customers: User[], services: ServiceItem[], users: Use
   
   // Add payment status to demo orders
   return demoOrders.map(order => {
-      const isPaid = order.status === OrderStatus.COMPLETED || order.status === OrderStatus.RETURNED;
+      const isPaid = order.status === OrderStatus.COMPLETED || order.status === OrderStatus.RETURNED || Math.random() > 0.5; // Randomize some paid pending orders
       return {
           ...order,
           paymentStatus: isPaid ? PaymentStatus.PAID : PaymentStatus.UNPAID,

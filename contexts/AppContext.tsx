@@ -1,7 +1,4 @@
 
-
-
-
 import React, { createContext, useState, useCallback, useEffect, useRef } from 'react';
 import { AppData, Notification, Theme, User, UserRole, InventoryItem, CrmTask, InteractionHistoryEntry } from '../types';
 import { useAppState } from './app/state';
@@ -227,7 +224,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             config: { responseMimeType: "application/json", responseSchema: schema },
         });
 
-        const analysis = JSON.parse(response.text);
+        const analysis = JSON.parse(response.text.trim());
 
         // 5. Update User State
         const churnPredictionData = {
@@ -440,8 +437,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = useCallback(async (username: string, password?: string): Promise<User | null> => {
     const user = appState.usersData.find(u => u.username.toLowerCase() === username.toLowerCase() || u.phone === username);
     if (user) {
-      // FIX: The simpleHash function was called without its required argument. The 'password' variable is now passed to it.
-// FIX: The simpleHash function was called without its required argument. The 'password' variable is now passed to it.
+      // FIX: The simpleHash function was missing its required password argument.
       const hashedPassword = password ? await simpleHash(password) : undefined;
       if (user.password === hashedPassword) {
         setCurrentUser(user);

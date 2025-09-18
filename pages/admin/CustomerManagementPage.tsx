@@ -8,10 +8,12 @@ import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { PlusCircleIcon, EditIcon, SearchIcon, User as UserIconLucide, Phone, MapPin, Settings, AwardIcon, KeyIcon, TrendingUpIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 
 interface EditingCustomerState extends Partial<User> {
   password?: string;
   passwordConfirmation?: string;
+  addressStreet?: string; // For form binding
 }
 
 const CustomerManagementPage: React.FC = () => {
@@ -33,7 +35,7 @@ const CustomerManagementPage: React.FC = () => {
   const openModal = (mode: 'add' | 'edit', user: Partial<User> | null = null) => {
     setModalMode(mode);
     const defaultAddress = user?.addresses?.find(a => a.isDefault)?.street || user?.addresses?.[0]?.street || '';
-    setCurrentUser(mode === 'add' ? { name: '', phone: '', addresses: [], loyaltyPoints: 0, role: UserRole.CUSTOMER, password: '', passwordConfirmation: '' } : { ...user, password: '', passwordConfirmation: '' });
+    setCurrentUser(mode === 'add' ? { name: '', phone: '', addressStreet: '', loyaltyPoints: 0, role: UserRole.CUSTOMER, password: '', passwordConfirmation: '' } : { ...user, addressStreet: defaultAddress, password: '', passwordConfirmation: '' });
     setIsModalOpen(true);
   };
 
@@ -44,8 +46,15 @@ const CustomerManagementPage: React.FC = () => {
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !currentUser.name?.trim() || !currentUser.phone?.trim()) {
+    if (!currentUser) return;
+    
+    if (!currentUser.name?.trim() || !currentUser.phone?.trim()) {
       alert('Tên và số điện thoại là bắt buộc.');
+      return;
+    }
+
+    if (modalMode === 'add' && !currentUser.addressStreet?.trim()) {
+      alert('Địa chỉ là bắt buộc khi thêm khách hàng mới.');
       return;
     }
     
@@ -66,7 +75,9 @@ const CustomerManagementPage: React.FC = () => {
         phone: currentUser.phone.trim(),
         username: currentUser.phone.trim(),
         role: UserRole.CUSTOMER,
-        addresses: [],
+        addresses: currentUser.addressStreet?.trim()
+          ? [{ id: uuidv4(), label: 'Mặc định', street: currentUser.addressStreet.trim(), isDefault: true }]
+          : [],
         loyaltyPoints: 0,
         password: currentUser.password?.trim() || '123123',
       };
@@ -83,6 +94,17 @@ const CustomerManagementPage: React.FC = () => {
         if (currentUser.password && currentUser.password.trim()) {
             updatePayload.password = currentUser.password;
         }
+
+        const updatedAddresses = [...(currentUser.addresses || [])];
+        const defaultAddressIndex = updatedAddresses.findIndex(a => a.isDefault);
+        const targetIndex = defaultAddressIndex > -1 ? defaultAddressIndex : 0;
+
+        if (updatedAddresses.length > 0) {
+            updatedAddresses[targetIndex].street = currentUser.addressStreet || '';
+        } else if (currentUser.addressStreet?.trim()) {
+            updatedAddresses.push({ id: uuidv4(), label: 'Mặc định', street: currentUser.addressStreet.trim(), isDefault: true });
+        }
+        updatePayload.addresses = updatedAddresses;
 
         await updateUser(updatePayload);
     }
@@ -188,7 +210,15 @@ const CustomerManagementPage: React.FC = () => {
                 <legend className="text-sm font-medium px-1">Thông tin Cá nhân</legend>
                 <Input label="Tên Khách hàng*" name="name" value={currentUser.name || ''} onChange={handleInputChange} required className="mt-2" />
                 <Input label="Số điện thoại*" name="phone" value={currentUser.phone || ''} onChange={handleInputChange} required className="mt-2" />
-                <Input label="Địa chỉ" name="address" value={currentUser.addresses?.[0]?.street || ''} disabled placeholder="(Sửa trong Cổng thông tin Khách hàng)" className="mt-2" />
+                <Input
+                  label={modalMode === 'add' ? "Địa chỉ*" : "Địa chỉ"}
+                  name="addressStreet"
+                  value={currentUser.addressStreet || ''}
+                  onChange={handleInputChange}
+                  required={modalMode === 'add'}
+                  className="mt-2"
+                  placeholder="Nhập địa chỉ đầy đủ"
+                />
                 {modalMode === 'edit' && (
                    <Input label="Điểm tích lũy" name="loyaltyPoints" type="number" value={currentUser.loyaltyPoints || 0} onChange={handleInputChange} className="mt-2" />
                 )}
