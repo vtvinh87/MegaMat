@@ -1,12 +1,6 @@
-
-
-
-
 import React, { useState, useMemo, useEffect, FormEvent } from 'react';
 import { useData } from '../../../contexts/DataContext';
 import { useAuth } from '../../../contexts/AuthContext';
-// FIX: Add PaymentStatus to new order payload
-// FIX: Removed deprecated WashMethod type.
 import { Order, OrderStatus, ServiceItem as AppServiceItem, User, OrderItem, PaymentStatus, Promotion } from '../../../types';
 import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
@@ -18,7 +12,6 @@ import { ShoppingCartIcon, PlusIcon, MinusCircleIcon, PackageIcon, TruckIcon, Na
 interface CustomerOrderItemStructure {
   id: string;
   serviceNameKey: string;
-  // FIX: Replaced selectedWashMethod with selectedWashMethodId to align with the data model.
   selectedWashMethodId: string;
   quantity: number;
   notes?: string;
@@ -27,14 +20,17 @@ interface CustomerOrderItemStructure {
 interface CreateOrderTabProps {
   isStaffServingModeActive: boolean;
   customerForNewOrder: User | null;
-  // FIX: Added missing prop `identifiedPublicCustomer` to the interface.
   identifiedPublicCustomer: User | null;
+  preFilledItems?: OrderItem[] | null;
+  onOrderCreated?: () => void;
 }
 
 export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
   isStaffServingModeActive,
   customerForNewOrder,
   identifiedPublicCustomer,
+  preFilledItems,
+  onOrderCreated,
 }) => {
   const { 
     services: availableServices, 
@@ -42,7 +38,7 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
     addOrder: systemAddOrder, 
     storeProfiles,
     promotions,
-    // FIX: Get washMethods from context to look up names.
+    orders: allOrders,
     washMethods,
   } = useData();
   const { currentUser } = useAuth();
@@ -55,24 +51,46 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
   const [orderNotes, setOrderNotes] = useState('');
   const [selectedStoreForManualOrder, setSelectedStoreForManualOrder] = useState<string | null>(null);
   const [selectedPromotionId, setSelectedPromotionId] = useState<string>('');
+  const [referralCode, setReferralCode] = useState('');
 
 
   const displayCustomer = isStaffServingModeActive ? customerForNewOrder : (currentUser || identifiedPublicCustomer);
+  
+  const isNewCustomer = useMemo(() => {
+    if (!displayCustomer) return false;
+    // A customer is new if they don't have any orders in the system yet.
+    return !allOrders.some(o => o.customer.id === displayCustomer.id);
+  }, [displayCustomer, allOrders]);
+
+  useEffect(() => {
+    if (preFilledItems) {
+        const mappedItems = preFilledItems.map(item => ({
+            id: uuidv4(),
+            serviceNameKey: item.serviceItem.name,
+            selectedWashMethodId: item.selectedWashMethodId,
+            quantity: item.quantity,
+            notes: item.notes || '',
+        }));
+        setCustomerOrderItems(mappedItems);
+        addNotification({ message: 'Đã điền lại các dịch vụ từ đơn hàng trước.', type: 'info', showToast: true });
+    }
+  }, [preFilledItems, addNotification]);
+
 
   useEffect(() => {
     if (displayCustomer) {
-      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
       setPickupAddress(displayCustomer.addresses?.[0]?.street || '');
-      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
       setDeliveryAddress(displayCustomer.addresses?.[0]?.street || '');
     } else {
       setPickupAddress('');
       setDeliveryAddress('');
     }
-    // Reset order items when customer context changes
-    setCustomerOrderItems([]);
+    // Reset order items when customer context changes, unless they are pre-filled
+    if (!preFilledItems) {
+        setCustomerOrderItems([]);
+    }
     setOrderNotes('');
-  }, [displayCustomer]);
+  }, [displayCustomer, preFilledItems]);
 
   useEffect(() => {
     if (storeProfiles.length === 1) {
@@ -99,7 +117,6 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
     }
     const defaultServiceName = uniqueServiceNames[0].value;
     const servicesWithThisName = availableServices.filter(s => s.name === defaultServiceName);
-    // FIX: Updated to use washMethodId.
     const defaultWashMethodId = servicesWithThisName.length > 0 ? servicesWithThisName[0].washMethodId : (washMethods.find(wm => wm.name === "Giặt ướt")?.id || '');
 
     setCustomerOrderItems(prev => [
@@ -107,7 +124,6 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
       { 
         id: uuidv4(),
         serviceNameKey: defaultServiceName, 
-        // FIX: Set selectedWashMethodId instead of selectedWashMethod.
         selectedWashMethodId: defaultWashMethodId, 
         quantity: 1, 
         notes: '' 
@@ -124,10 +140,8 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
             const newServiceName = value as string;
             updatedItem.serviceNameKey = newServiceName;
             const servicesWithThisName = availableServices.filter(s => s.name === newServiceName);
-            // FIX: Updated to use washMethodId.
             updatedItem.selectedWashMethodId = servicesWithThisName.length > 0 ? servicesWithThisName[0].washMethodId : (washMethods.find(wm => wm.name === "Giặt ướt")?.id || '');
           } else if (field === 'selectedWashMethodId') {
-            // FIX: Updated to handle selectedWashMethodId field.
             updatedItem.selectedWashMethodId = value as string;
           } else if (field === 'quantity') {
             updatedItem.quantity = Math.max(1, parseInt(value as string, 10) || 1);
@@ -147,7 +161,6 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
 
   const subtotal = useMemo(() => {
     return customerOrderItems.reduce((sum, item) => {
-      // FIX: Find service using washMethodId.
       const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
       if (service) {
         const lineTotal = Math.max(service.price * item.quantity, service.minPrice || 0);
@@ -166,7 +179,6 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
 
         const isChannelMatch = !p.applicableChannels || p.applicableChannels.length === 0 || p.applicableChannels.includes('online');
 
-        // FIX: Replaced deprecated `!p.isActive` with `p.status !== 'active'` to check promotion status.
         if (!isStoreMatch || p.status !== 'active' || !isChannelMatch) return false;
         
         if (p.startDate && new Date(p.startDate) > now) return false;
@@ -178,21 +190,17 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
         }
         if (p.minOrderAmount && subtotal < p.minOrderAmount) return false;
         
-        // New checks for service and wash method applicability
         if (p.applicableServiceIds && p.applicableServiceIds.length > 0) {
-          if (customerOrderItems.length > 0) { // Only apply this filter if there are items in the cart
+          if (customerOrderItems.length > 0) { 
             const hasApplicableService = customerOrderItems.some(item => {
-                // FIX: Find service using washMethodId.
                 const service = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
                 return service && p.applicableServiceIds!.includes(service.id);
             });
             if (!hasApplicableService) return false;
           }
         }
-        // FIX: Changed applicableWashMethods to applicableWashMethodIds.
         if (p.applicableWashMethodIds && p.applicableWashMethodIds.length > 0) {
            if (customerOrderItems.length > 0) {
-            // FIX: Changed applicableWashMethods to applicableWashMethodIds.
             const hasApplicableWashMethod = customerOrderItems.some(item => p.applicableWashMethodIds!.includes(item.selectedWashMethodId));
             if (!hasApplicableWashMethod) return false;
            }
@@ -262,9 +270,7 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
     }
     
     let hasInvalidServiceCombination = false;
-    // FIX: Construct OrderItem with selectedWashMethodId instead of selectedWashMethod.
     const itemsForNewOrder: OrderItem[] = customerOrderItems.map(coItem => {
-        // FIX: Find service using washMethodId.
         const serviceItem = availableServices.find(s => s.name === coItem.serviceNameKey && s.washMethodId === coItem.selectedWashMethodId);
         if (!serviceItem) {
             addNotification({ message: `Lỗi: Không tìm thấy dịch vụ "${coItem.serviceNameKey}" với phương pháp "${coItem.selectedWashMethodId}".`, type: 'error'});
@@ -322,17 +328,18 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
         scanHistory: [{ timestamp: createdAt, action: 'Yêu cầu đặt lịch từ khách hàng', scannedBy: 'Khách hàng Website' }],
         notes: finalCombinedNotes, 
         ownerId: ownerIdForOrder,
+        referralCodeUsed: referralCode.trim() || undefined,
     };
     systemAddOrder(newOrderPayload); 
     addNotification({ message: `Đã gửi yêu cầu đặt lịch. Mã tham khảo: ${newOrderPayload.id}. Cửa hàng sẽ sớm liên hệ để xác nhận.`, type: 'success' });
     
     // Reset form
+    if (onOrderCreated) {
+        onOrderCreated();
+    }
     setCustomerOrderItems([]); 
-    // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
     if (customerContextForOrder?.addresses && customerContextForOrder.addresses.length > 0) { 
-      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
       setPickupAddress(customerContextForOrder.addresses[0].street); 
-      // FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'?
       setDeliveryAddress(customerContextForOrder.addresses[0].street); 
     } else {
       setPickupAddress('');
@@ -343,13 +350,13 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
     setOrderNotes('');
     setSelectedStoreForManualOrder(storeProfiles.length === 1 ? storeProfiles[0].ownerId : null);
     setSelectedPromotionId('');
+    setReferralCode('');
   };
   
   const canSubmitCreateOrder = 
     customerOrderItems.length > 0 &&
     displayCustomer &&
     availableServices.length > 0 &&
-    // FIX: Find service using washMethodId.
     !customerOrderItems.some(item => !availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId)) &&
     (storeProfiles.length === 0 || (storeProfiles.length === 1 && storeProfiles[0].ownerId) || (storeProfiles.length > 1 && selectedStoreForManualOrder));
 
@@ -370,7 +377,6 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
       {displayCustomer && (
         <div className="p-3 mb-4 bg-emerald-50 text-emerald-700 rounded-md text-sm border border-emerald-300">
           <p><strong className="font-semibold">Khách hàng:</strong> {displayCustomer.name} ({displayCustomer.phone})</p>
-          {/* FIX: Property 'address' does not exist on type 'User'. Did you mean 'addresses'? */}
           {displayCustomer.addresses?.[0]?.street && <p><strong className="font-semibold">Địa chỉ mặc định:</strong> {displayCustomer.addresses[0].street}</p>}
         </div>
       )}
@@ -379,7 +385,6 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
         <fieldset className="space-y-4 p-4 border border-border-base rounded-lg">
           <legend className="text-md font-semibold text-text-heading mb-2 px-1 flex items-center"><PackageIcon size={18} className="mr-2 text-brand-primary" />Dịch vụ Chọn</legend>
           {customerOrderItems.map((item, index) => {
-            // FIX: Use washMethods to look up names for the options.
             const washMethodsForService = availableServices
               .filter(s => s.name === item.serviceNameKey)
               .map(s => {
@@ -388,7 +393,6 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
               })
               .filter((option, idx, self) => self.findIndex(o => o.value === option.value) === idx);
             
-            // FIX: Find service using washMethodId.
             const currentSelectedServiceDetails = availableServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
             const lineItemTotal = currentSelectedServiceDetails ? Math.max(currentSelectedServiceDetails.price * item.quantity, currentSelectedServiceDetails.minPrice || 0) : 0;
 
@@ -424,7 +428,15 @@ export const CreateOrderTab: React.FC<CreateOrderTabProps> = ({
         )}
         
         <fieldset className="space-y-3 p-4 border border-border-base rounded-lg">
-           <legend className="text-md font-semibold text-text-heading mb-2 px-1 flex items-center"><TagIcon size={18} className="mr-2 text-brand-primary" />Khuyến mãi</legend>
+           <legend className="text-md font-semibold text-text-heading mb-2 px-1 flex items-center"><TagIcon size={18} className="mr-2 text-brand-primary" />Khuyến mãi & Giới thiệu</legend>
+            {isNewCustomer && (
+              <Input
+                label="Mã giới thiệu (nếu có)"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                placeholder="Nhập mã để nhận ưu đãi cho đơn đầu tiên"
+              />
+            )}
             {storeProfiles.length > 1 && !selectedStoreForManualOrder ? (
                 <p className="text-sm text-text-muted italic p-2 bg-blue-50 rounded-md">Vui lòng chọn một cửa hàng để xem các khuyến mãi áp dụng.</p>
             ) : availablePromotionsForOrder.length > 0 ? (

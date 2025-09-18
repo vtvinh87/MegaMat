@@ -4,7 +4,8 @@ import {
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
     Notification, VariableCost, FixedCostItem, FixedCostUpdateHistoryEntry, 
     ServiceRating, StaffRating, Tip, KPI, StoreProfile, StoreUpdateHistoryEntry, Promotion,
-    Theme, UserRole, VariableCostInput, KpiPeriodType, MaterialItemDefinition, WashMethodDefinition, InventoryAdjustmentRequest
+    Theme, UserRole, VariableCostInput, KpiPeriodType, MaterialItemDefinition, WashMethodDefinition, InventoryAdjustmentRequest,
+    CrmTask, InteractionHistoryEntry
 } from '../types';
 
 // This mirrors the AppContextType but without auth fields
@@ -35,6 +36,7 @@ export interface DataContextType {
   acknowledgedOptOutRequests: { [chairmanId: string]: string[] };
   acknowledgedRejectedRequests: string[];
   washMethods: WashMethodDefinition[];
+  crmTasks: CrmTask[];
   activePublicCustomerId: string | null;
   setActivePublicCustomerId: (customerId: string | null) => void;
 
@@ -78,6 +80,8 @@ export interface DataContextType {
   addUser: (userData: Omit<User, 'id'> & { managedBy?: string; }, storeProfileData?: Omit<StoreProfile, 'ownerId'>) => Promise<User | null>;
   updateUser: (userData: Partial<User> & { id: string }, storeProfileData?: Partial<Omit<StoreProfile, 'ownerId'>>) => Promise<boolean>;
   deleteUser: (userId: string) => void;
+  addUserInteraction: (customerId: string, interaction: Omit<InteractionHistoryEntry, 'timestamp' | 'staffUserId'> & { staffUserId?: string }) => void;
+  analyzeAndSetChurnRisk: (customerId: string) => Promise<void>;
   updateStoreProfile: (profileData: Partial<StoreProfile> & { ownerId: string; }, reason: string) => void;
   findStoreProfileByOwnerId: (ownerId: string) => StoreProfile | undefined;
   deleteStoreAndOwner: (ownerId: string, reason: string) => void;
@@ -99,6 +103,9 @@ export interface DataContextType {
   addWashMethod: (methodData: Omit<WashMethodDefinition, 'id' | 'ownerId'>) => void;
   updateWashMethod: (method: WashMethodDefinition) => void;
   deleteWashMethod: (methodId: string) => void;
+  addCrmTask: (taskData: Omit<CrmTask, 'id' | 'createdAt' | 'ownerId'>) => void;
+  updateCrmTask: (taskData: Partial<CrmTask> & { id: string }) => void;
+  deleteCrmTask: (taskId: string) => void;
   getCurrentUserOwnerId: () => string | null;
   getOwnerIdForUser: (userId: string, allUsers: User[]) => string | null;
 }

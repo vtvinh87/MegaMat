@@ -1,5 +1,6 @@
 
 
+
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
@@ -9,6 +10,8 @@ import OrderListPage from './pages/admin/OrderListPage';
 import { OrderCreatePage } from './pages/admin/OrderCreatePage';
 import { OrderDetailPage } from './pages/admin/OrderDetailPage';
 import CustomerManagementPage from './pages/admin/CustomerManagementPage';
+import CustomerDetailPage from './pages/admin/CustomerDetailPage'; // New Import
+import CustomerSegmentsPage from './pages/admin/CustomerSegmentsPage'; // New Import for CRM
 import ServiceManagementPage from './pages/admin/ServiceManagementPage';
 import SupplierManagementPage from './pages/admin/SupplierManagementPage';
 import InventoryManagementPage from './pages/admin/InventoryManagementPage';
@@ -78,6 +81,7 @@ const App: React.FC = () => {
                   <Route path="/admin/orders/print/:orderId" element={<OrderPrintPreviewPage />} />
                   <Route path="/admin/orders/:id" element={<OrderDetailPage />} />
                   <Route path="/admin/customers" element={<CustomerManagementPage />} />
+                  <Route path="/admin/customers/:customerId" element={<CustomerDetailPage />} /> {/* New Route */}
                   <Route path="/admin/services" element={<ServiceManagementPage />} />
                   <Route path="/admin/suppliers" element={<SupplierManagementPage />} />
                   <Route path="/admin/inventory" element={<InventoryManagementPage />} />
@@ -104,6 +108,7 @@ const App: React.FC = () => {
                      <Route path="/admin/settings" element={<StoreSettingsPage />} />
                      <Route path="/admin/wash-methods" element={<WashMethodManagementPage />} />
                      <Route path="/admin/material-definitions" element={<MaterialDefinitionManagementPage />} />
+                     <Route path="/admin/customer-segments" element={<CustomerSegmentsPage />} />
                    </>
               )}
 

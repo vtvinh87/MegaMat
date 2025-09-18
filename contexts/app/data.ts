@@ -1,4 +1,4 @@
-import { UserRole, User, StoreProfile, FixedCostItem, MaterialItemDefinition, VariableCost, VariableCostCategory, Order, ServiceItem, OrderItem, ScanHistoryEntry, InventoryItem, MaterialOrder, Notification, OrderStatus, Promotion, PaymentStatus, PaymentMethod, Supplier, FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreUpdateHistoryEntry, WashMethodDefinition, InventoryAdjustmentRequest, Address, LoyaltyHistoryEntry } from '../../types';
+import { UserRole, User, StoreProfile, FixedCostItem, MaterialItemDefinition, VariableCost, VariableCostCategory, Order, ServiceItem, OrderItem, ScanHistoryEntry, InventoryItem, MaterialOrder, Notification, OrderStatus, Promotion, PaymentStatus, PaymentMethod, Supplier, FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreUpdateHistoryEntry, WashMethodDefinition, InventoryAdjustmentRequest, Address, LoyaltyHistoryEntry, CrmTask, LoyaltyTier } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { MOCK_SERVICES } from '../../constants';
 import * as LsKeys from './utils';
@@ -39,11 +39,23 @@ export const MOCK_USERS: User[] = [
     ],
     dob: new Date('1995-10-20'),
     loyaltyPoints: 120,
+    lifetimeValue: 1250000,
+    loyaltyTier: 'Bạc',
     loyaltyHistory: [
       { timestamp: new Date(new Date().setDate(new Date().getDate() - 10)), orderId: 'DH-DUNG001', pointsChange: 50, reason: 'Tích điểm từ đơn hàng DH-DUNG001' },
       { timestamp: new Date(new Date().setDate(new Date().getDate() - 5)), orderId: 'DH-DUNG003', pointsChange: -20, reason: 'Đổi điểm trừ vào đơn hàng DH-DUNG003' },
       { timestamp: new Date(new Date().setDate(new Date().getDate() - 2)), orderId: 'DH-DUNG005', pointsChange: 90, reason: 'Tích điểm từ đơn hàng DH-DUNG005' },
-    ]
+    ],
+    customerSince: new Date('2023-01-15'),
+    tags: ['VIP', 'Allergy Alert'],
+    communicationPreferences: ['sms', 'email'],
+    notes: 'Khách hàng quan trọng, dị ứng với nước xả vải oải hương. Luôn yêu cầu giao hàng sau 7h tối.',
+    interactionHistory: [
+      { timestamp: new Date(new Date().setDate(new Date().getDate() - 25)), staffUserId: 'user_staff_an', channel: 'in-person', summary: 'Hỏi về dịch vụ giặt khô cho áo len cashmere.' },
+      { timestamp: new Date(new Date().setDate(new Date().getDate() - 3)), staffUserId: 'user_manager_cuong', channel: 'phone', summary: 'Khiếu nại về việc giao hàng trễ 30 phút. Đã xin lỗi và tặng voucher.' }
+    ],
+    referralCode: 'MEGAB002',
+    successfulReferrals: [],
   },
   { 
     id: 'cus_binhminh', 
@@ -56,9 +68,20 @@ export const MOCK_USERS: User[] = [
         { id: uuidv4(), label: 'Nhà', street: '789 Đường GHI, Quận 5, TP.HCM', isDefault: true }
     ],
     loyaltyPoints: 50,
+    lifetimeValue: 300000,
+    loyaltyTier: 'Đồng',
     loyaltyHistory: [
       { timestamp: new Date(new Date().setDate(new Date().getDate() - 20)), orderId: 'DH-DUNG002', pointsChange: 50, reason: 'Tích điểm từ đơn hàng DH-DUNG002' }
-    ]
+    ],
+    customerSince: new Date('2024-03-10'),
+    tags: ['Needs Follow-up'],
+    communicationPreferences: ['phone_call'],
+    notes: 'Khách hàng mới, hỏi nhiều về giá. Có thể tư vấn gói dịch vụ tháng.',
+    interactionHistory: [
+      { timestamp: new Date(new Date().setDate(new Date().getDate() - 20)), staffUserId: 'user_staff_binh', channel: 'in-person', summary: 'Lần đầu sử dụng dịch vụ, cần hướng dẫn chi tiết.' }
+    ],
+    referralCode: 'MEGAMINH',
+    successfulReferrals: [],
   },
 ];
 
@@ -79,6 +102,12 @@ export const MOCK_STORE_PROFILES: StoreProfile[] = [
       enabled: true,
       accrualRate: 10000, // 10,000 VND = 1 point
       redemptionRate: 1000, // 1 point = 1,000 VND
+      tiers: [
+        { name: 'Đồng', minSpend: 0, discountPercentage: 0, benefits: ["Tích điểm cơ bản"] },
+        { name: 'Bạc', minSpend: 1000000, discountPercentage: 5, benefits: ["Giảm giá 5% cho tất cả đơn hàng", "Ưu tiên xử lý đơn"] },
+        { name: 'Vàng', minSpend: 5000000, discountPercentage: 10, benefits: ["Giảm giá 10% cho tất cả đơn hàng", "Miễn phí giao hàng 2 lần/tháng"] },
+        { name: 'Bạch kim', minSpend: 15000000, discountPercentage: 15, benefits: ["Giặt khô 1 bộ vest miễn phí/tháng"] }
+      ]
     },
   },
   { 
@@ -304,6 +333,61 @@ const createInitialWashMethods = (ownerId: string): WashMethodDefinition[] => [
   { id: `wm_iron_only_default_${ownerId}`, name: "Chỉ ủi", description: "Làm phẳng quần áo bằng bàn là nhiệt thông thường.", ownerId },
 ];
 
+const createDemoCrmTasks = (customers: User[], staff: User[], ownerId: string): CrmTask[] => {
+    const tasks: CrmTask[] = [];
+    if (customers.length === 0 || staff.length === 0) return [];
+    
+    const vipCustomer = customers.find(c => c.tags?.includes('VIP'));
+    const followupCustomer = customers.find(c => c.tags?.includes('Needs Follow-up'));
+    
+    if (vipCustomer) {
+        tasks.push({
+            id: uuidv4(),
+            customerId: vipCustomer.id,
+            assignedToUserId: staff[0].id,
+            title: 'Gọi điện cảm ơn khách VIP',
+            description: `Gọi điện cho ${vipCustomer.name} để cảm ơn đã sử dụng dịch vụ và hỏi thăm chất lượng.`,
+            dueDate: new Date(new Date().setDate(new Date().getDate() + 2)),
+            status: 'pending',
+            createdAt: new Date(),
+            ownerId: ownerId,
+        });
+    }
+
+    if (followupCustomer) {
+        tasks.push({
+            id: uuidv4(),
+            customerId: followupCustomer.id,
+            assignedToUserId: staff.length > 1 ? staff[1].id : staff[0].id,
+            title: 'Tư vấn gói tháng cho khách mới',
+            description: `Liên hệ ${followupCustomer.name} để tư vấn về các gói dịch vụ tháng tiết kiệm hơn.`,
+            dueDate: new Date(new Date().setDate(new Date().getDate() + 5)),
+            status: 'pending',
+            createdAt: new Date(),
+            ownerId: ownerId,
+        });
+    }
+
+    return tasks;
+};
+
+const getOwnerIdForUser = (userId: string, allUsers: User[]): string | null => {
+    let currentUserToCheck = allUsers.find(u => u.id === userId);
+    if (!currentUserToCheck) return null;
+
+    if (currentUserToCheck.role === UserRole.CHAIRMAN) return null;
+    if (currentUserToCheck.role === UserRole.OWNER) return currentUserToCheck.id;
+
+    while (currentUserToCheck && currentUserToCheck.managedBy) {
+      const manager = allUsers.find(u => u.id === currentUserToCheck!.managedBy);
+      if (!manager) return null; 
+      if (manager.role === UserRole.OWNER) return manager.id;
+      if (manager.role === UserRole.CHAIRMAN) return null; 
+      currentUserToCheck = manager;
+    }
+    return null;
+};
+
 
 type AppStateSetters = {
     setUsersData: (data: User[]) => void;
@@ -326,6 +410,7 @@ type AppStateSetters = {
     setStoreUpdateHistoryData: (data: StoreUpdateHistoryEntry[]) => void;
     setSuppliersData: (data: Supplier[]) => void;
     setWashMethodsData: (data: WashMethodDefinition[]) => void;
+    setCrmTasksData: (data: CrmTask[]) => void;
 };
 
 export const seedInitialData = async (setters: AppStateSetters) => {
@@ -335,7 +420,7 @@ export const seedInitialData = async (setters: AppStateSetters) => {
   if (!isDataSeeded || JSON.parse(isDataSeeded).length === 0) {
     console.log("Seeding initial data into state...");
 
-    // 1. Hash passwords for mock users
+    // 1. Hash passwords for mock users and generate referral codes
     const hashedUsers = await Promise.all(MOCK_USERS.map(async (user) => {
         if (user.password) {
             user.password = await simpleHash(user.password);
@@ -362,6 +447,7 @@ export const seedInitialData = async (setters: AppStateSetters) => {
     let allInventory: InventoryItem[] = [];
     let allMaterialOrders: MaterialOrder[] = [];
     let allWashMethods: WashMethodDefinition[] = [];
+    let allCrmTasks: CrmTask[] = [];
 
     storeOwners.forEach(owner => {
         const storeProfile = MOCK_STORE_PROFILES.find(p => p.ownerId === owner.id);
@@ -373,6 +459,9 @@ export const seedInitialData = async (setters: AppStateSetters) => {
         allVariableCosts.push(...createDemoVariableCosts(owner.id));
         allInventory.push(...createDemoInventory(owner.id));
         allMaterialOrders.push(...createDemoMaterialOrders(owner.id, INITIAL_MATERIAL_ITEM_DEFINITIONS));
+
+        const staffForThisOwner = hashedUsers.filter(u => (u.role === UserRole.STAFF || u.role === UserRole.MANAGER) && getOwnerIdForUser(u.id, hashedUsers) === owner.id);
+        allCrmTasks.push(...createDemoCrmTasks(customersForOrders, staffForThisOwner, owner.id));
     });
 
     setters.setAllOrdersData(allOrders);
@@ -381,6 +470,7 @@ export const seedInitialData = async (setters: AppStateSetters) => {
     setters.setAllInventoryData(allInventory);
     setters.setAllMaterialOrdersData(allMaterialOrders);
     setters.setWashMethodsData(allWashMethods);
+    setters.setCrmTasksData(allCrmTasks);
 
     // 4. Initialize remaining data slices to empty arrays
     setters.setAllNotificationsData([]);

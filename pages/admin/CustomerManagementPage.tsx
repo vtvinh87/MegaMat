@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, ChangeEvent, FormEvent } from 'react';
 import { useData } from '../../contexts/DataContext';
 import { User, UserRole } from '../../types';
@@ -5,7 +6,8 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { PlusCircleIcon, EditIcon, SearchIcon, User as UserIconLucide, Phone, MapPin, Settings, AwardIcon, KeyIcon } from 'lucide-react';
+import { PlusCircleIcon, EditIcon, SearchIcon, User as UserIconLucide, Phone, MapPin, Settings, AwardIcon, KeyIcon, TrendingUpIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface EditingCustomerState extends Partial<User> {
   password?: string;
@@ -98,8 +100,8 @@ const CustomerManagementPage: React.FC = () => {
   const tableHeaders = [
     { label: "Tên", icon: <UserIconLucide size={14}/> },
     { label: "SĐT / Tên ĐN", icon: <Phone size={14}/> },
-    { label: "Địa chỉ mặc định", icon: <MapPin size={14}/> },
     { label: "Điểm Tích Lũy", icon: <AwardIcon size={14}/> },
+    { label: "Rủi ro Churn", icon: <TrendingUpIcon size={14}/> },
     { label: "Hành động", icon: <Settings size={14}/> }
   ];
 
@@ -138,13 +140,28 @@ const CustomerManagementPage: React.FC = () => {
               </thead>
               <tbody className="bg-bg-surface divide-y divide-border-base">
                 {filteredCustomers.map(customer => {
-                  const defaultAddress = customer.addresses?.find(a => a.isDefault)?.street || customer.addresses?.[0]?.street || '-';
                   return (
                   <tr key={customer.id} className="hover:bg-bg-surface-hover dark:hover:bg-slate-700/60 transition-colors">
-                    <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-text-heading">{customer.name}</td>
+                    <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-text-heading">
+                      <Link to={`/admin/customers/${customer.id}`} className="hover:underline text-brand-primary">
+                        {customer.name}
+                      </Link>
+                    </td>
                     <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body">{customer.phone}</td>
-                    <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body truncate max-w-xs">{defaultAddress}</td>
                     <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body font-semibold text-center">{customer.loyaltyPoints || 0}</td>
+                    <td className="px-5 py-4 whitespace-nowrap text-sm text-text-body text-center">
+                      {customer.churnPrediction ? (
+                        <span className={`px-2 py-1 rounded-full font-semibold text-xs ${
+                          customer.churnPrediction.probability >= 0.7 ? 'bg-red-100 text-red-700' :
+                          customer.churnPrediction.probability >= 0.3 ? 'bg-amber-100 text-amber-600' :
+                          'bg-green-100 text-green-700'
+                        }`} title={`Phân tích lần cuối: ${new Date(customer.churnPrediction.lastAnalyzed).toLocaleString('vi-VN')}`}>
+                          {(customer.churnPrediction.probability * 100).toFixed(0)}%
+                        </span>
+                      ) : (
+                        <span className="text-xs text-text-muted">Chưa P.tích</span>
+                      )}
+                    </td>
                     <td className="px-5 py-4 whitespace-nowrap text-sm font-medium">
                       <Button variant="ghost" size="sm" onClick={() => openModal('edit', customer)} title="Sửa" className="text-text-link hover:text-brand-primary p-1.5">
                         <EditIcon size={18}/>

@@ -1,3 +1,11 @@
+
+// FIX: Removed self-import of WashMethodDefinition.
+export interface LoyaltyTier {
+  name: string; // 'Bronze', 'Silver', 'Gold'
+  minSpend: number; // Minimum lifetime value to reach this tier
+  discountPercentage: number; // e.g. 5 for 5%
+  benefits: string[];
+}
 export interface WashMethodDefinition {
   id: string;
   name: string;
@@ -53,6 +61,39 @@ export interface LoyaltyHistoryEntry {
   reason: string; // "Tích điểm từ đơn hàng", "Đổi điểm trừ vào đơn hàng", "Quà sinh nhật"
 }
 
+// --- New CRM Interfaces ---
+
+export interface InteractionHistoryEntry {
+  timestamp: Date;
+  staffUserId: string; // ID of the User (staff) who interacted
+  channel: 'phone' | 'in-person' | 'sms' | 'email' | 'other';
+  summary: string; // A summary of the interaction
+}
+
+export interface CrmTask {
+  id: string;
+  customerId: string; // Links to User.id
+  assignedToUserId: string; // Links to staff/manager User.id
+  title: string;
+  description: string;
+  dueDate: Date;
+  status: 'pending' | 'completed';
+  createdAt: Date;
+  completedAt?: Date;
+  ownerId: string; // To scope tasks to a store
+}
+
+// --- End of New CRM Interfaces ---
+
+// --- New Churn Prediction Interface ---
+export interface ChurnPrediction {
+  probability: number; // 0 to 1
+  reasons: string[];
+  lastAnalyzed: Date;
+}
+// --- End of New Churn Prediction Interface ---
+
+
 // Core User type for ALL individuals, including customers
 export interface User {
   id: string; 
@@ -77,6 +118,27 @@ export interface User {
   dob?: Date; // Date of Birth
   loyaltyPoints?: number;
   loyaltyHistory?: LoyaltyHistoryEntry[];
+  loyaltyTier?: string; // e.g., 'Bronze', 'Silver'
+  lifetimeValue?: number; // Total amount spent by the customer
+  
+  // --- NEW CRM Fields for Customers ---
+  interactionHistory?: InteractionHistoryEntry[];
+  tags?: string[];
+  notes?: string; // General, persistent notes about the customer
+  customerSince?: Date;
+  communicationPreferences?: ('sms' | 'phone_call' | 'email')[];
+  churnPrediction?: ChurnPrediction; // New field for AI analysis
+
+  // --- NEW Phase 7 Fields ---
+  referralCode?: string; // Unique code for this user to share
+  referredByCode?: string; // The code of the user who referred them
+  hasReceivedReferralBonus?: boolean; // To prevent awarding bonus multiple times
+  successfulReferrals?: {
+      userId: string;
+      name: string;
+      firstOrderCompletedAt: Date;
+      pointsAwarded: number;
+  }[];
 }
 
 
@@ -132,6 +194,9 @@ export interface Order {
   promotionDiscountAmount?: number; // New field for promotions
   paymentStatus: PaymentStatus; // New field for payment tracking
   paymentMethod?: PaymentMethod; // New field for payment tracking
+  
+  // --- NEW Phase 7 Field ---
+  referralCodeUsed?: string; // The referral code applied to this order (if it's the first)
 }
 
 export interface Supplier {
@@ -354,6 +419,7 @@ export interface StoreProfile {
     enabled: boolean;
     accrualRate: number; // How many VND to earn 1 point (e.g., 10000)
     redemptionRate: number; // How many VND 1 point is worth (e.g., 1000)
+    tiers?: LoyaltyTier[];
   };
 }
 // --- End of Store Profile Interface ---
@@ -499,6 +565,7 @@ export interface AppData {
   acknowledgedOptOutRequests: { [chairmanId: string]: string[] };
   acknowledgedRejectedRequests: string[];
   washMethods: WashMethodDefinition[];
+  crmTasks: CrmTask[];
 }
 
 export interface AppContextType extends AppData {
@@ -563,6 +630,8 @@ export interface AppContextType extends AppData {
   addUser: (userData: Omit<User, 'id'> & { managedBy?: string }, storeProfileData?: Omit<StoreProfile, 'ownerId'>) => Promise<User | null>; // Returns created User on success
   updateUser: (userData: Partial<User> & { id: string }, storeProfileData?: Partial<Omit<StoreProfile, 'ownerId'>>) => Promise<boolean>; // Updated
   deleteUser: (userId: string) => void;
+  addUserInteraction: (customerId: string, interaction: Omit<InteractionHistoryEntry, 'timestamp' | 'staffUserId'> & { staffUserId?: string }) => void;
+  analyzeAndSetChurnRisk: (customerId: string) => Promise<void>; // New AI function
 
   // Store Profile Management
   updateStoreProfile: (profileData: Partial<StoreProfile> & { ownerId: string }, reason: string) => void;
@@ -590,6 +659,11 @@ export interface AppContextType extends AppData {
   addWashMethod: (methodData: Omit<WashMethodDefinition, 'id' | 'ownerId'>) => void;
   updateWashMethod: (method: WashMethodDefinition) => void;
   deleteWashMethod: (methodId: string) => void;
+  
+  // CRM Task Management
+  addCrmTask: (taskData: Omit<CrmTask, 'id' | 'createdAt' | 'ownerId'>) => void;
+  updateCrmTask: (taskData: Partial<CrmTask> & { id: string }) => void;
+  deleteCrmTask: (taskId: string) => void;
 
   // Helper to get ownerId for the current user's store context
   getCurrentUserOwnerId: () => string | null; 

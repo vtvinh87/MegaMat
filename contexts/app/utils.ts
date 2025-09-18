@@ -23,14 +23,16 @@ export const ACKNOWLEDGED_CANCEL_REQUESTS_KEY = `${STORAGE_PREFIX}acknowledgedCa
 export const ACKNOWLEDGED_OPT_OUT_REQUESTS_KEY = `${STORAGE_PREFIX}acknowledgedOptOutRequests`;
 export const ACKNOWLEDGED_REJECTED_REQUESTS_KEY = `${STORAGE_PREFIX}acknowledgedRejectedRequests`;
 export const WASH_METHODS_KEY = `${STORAGE_PREFIX}washMethods`;
+export const CRM_TASKS_KEY = `${STORAGE_PREFIX}crmTasks`;
 export const CURRENT_USER_KEY = `${STORAGE_PREFIX}currentUser`;
 export const THEME_KEY = `${STORAGE_PREFIX}theme`;
 
 
 // --- Helper for Date Revival ---
 const DATE_FIELDS: Record<string, string[]> = {
-    users: ['dob'],
+    users: ['dob', 'customerSince'],
     loyaltyHistory: ['timestamp'],
+    interactionHistory: ['timestamp'],
     orders: ['createdAt', 'receivedAt', 'estimatedCompletionTime', 'completedAt'],
     scanHistory: ['timestamp'], // Nested in orders
     notifications: ['createdAt'],
@@ -47,6 +49,7 @@ const DATE_FIELDS: Record<string, string[]> = {
     promotions: ['startDate', 'endDate', 'respondedAt'], // Added respondedAt for optOuts
     optOutRequests: ['respondedAt'], // Nested in promotions
     cancellationRequest: ['respondedAt'], // Nested in promotions
+    crmTasks: ['dueDate', 'createdAt', 'completedAt'],
 };
 
 function reviveDates(key: string, value: any, objectType?: string): any {
@@ -65,6 +68,9 @@ function reviveDates(key: string, value: any, objectType?: string): any {
   }
   if (key === 'loyaltyHistory' && Array.isArray(value)) {
     return value.map(entry => reviveDatesInObject(entry, 'loyaltyHistory'));
+  }
+  if (key === 'interactionHistory' && Array.isArray(value)) {
+    return value.map(entry => reviveDatesInObject(entry, 'interactionHistory'));
   }
   if (key === 'optOutRequests' && Array.isArray(value)) {
     return value.map(entry => reviveDatesInObject(entry, 'optOutRequests'));

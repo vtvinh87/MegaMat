@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { User, UserRole, StoreProfile, StoreUpdateHistoryEntry } from '../../../types';
@@ -94,11 +95,13 @@ export const useUserManagement = ({
 
     const hashedPassword = await simpleHash(userData.password);
     const newUserId = uuidv4();
+    const lastName = userData.name.split(' ').pop()?.toUpperCase() || 'USER';
 
     const newUser: User = {
         ...userData,
         id: newUserId,
         password: hashedPassword,
+        referralCode: userData.role === UserRole.CUSTOMER ? `MEGA${lastName.substring(0,3)}${newUserId.slice(-3)}` : undefined,
     };
 
     setUsersData(prev => [...prev, newUser]);
@@ -136,6 +139,7 @@ export const useUserManagement = ({
     
     // Xử lý cập nhật mật khẩu một cách an toàn.
     // Chỉ mã hóa và bao gồm mật khẩu nếu một mật khẩu mới, không rỗng được cung cấp.
+    // FIX: The call to simpleHash was missing its argument. It should be passed updates.password.
     if (updates.password && updates.password.trim()) {
         updates.password = await simpleHash(updates.password);
     } else {

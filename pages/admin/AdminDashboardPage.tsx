@@ -1,17 +1,19 @@
 
 
+
+
 import React, { useMemo, useState, useEffect, useCallback } from 'react'; 
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
-import { UserRole, Notification, User, OrderStatus, Promotion, InventoryAdjustmentRequest } from '../../types';
+import { UserRole, Notification, User, OrderStatus, Promotion, InventoryAdjustmentRequest, CrmTask } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
-import { PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, AlertTriangleIcon, ArrowRightIcon, Settings2Icon, CheckCircle, InfoIcon, ActivityIcon, BriefcaseIcon, PlusCircleIcon, BuildingIcon, LineChartIcon, PieChartIcon, SparklesIcon, MessageSquareIcon, MessageCircleIcon, RefreshCwIcon, MegaphoneIcon, ShieldAlertIcon, XCircleIcon, XIcon } from 'lucide-react';
+import { PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, AlertTriangleIcon, ArrowRightIcon, Settings2Icon, CheckCircle, InfoIcon, ActivityIcon, BriefcaseIcon, PlusCircleIcon, BuildingIcon, LineChartIcon, PieChartIcon, SparklesIcon, MessageSquareIcon, MessageCircleIcon, RefreshCwIcon, MegaphoneIcon, ShieldAlertIcon, XCircleIcon, XIcon, ClipboardListIcon, UserPlusIcon, StarIcon, ThumbsUp, ThumbsDown, Lightbulb } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { Spinner } from '../../components/ui/Spinner';
 import { APP_NAME } from '../../constants';
 
@@ -25,6 +27,153 @@ const NotificationIcon: React.FC<{type: Notification['type']}> = ({ type }) => {
     default: return <InfoIcon size={16} className="text-text-muted mr-2 mt-0.5 flex-shrink-0" />;
   }
 };
+
+const MyTasksWidget: React.FC = () => {
+  const { crmTasks, findUserById } = useData();
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+
+  const myPendingTasks = useMemo(() => {
+    if (!currentUser) return [];
+    return crmTasks
+      .filter(task => task.assignedToUserId === currentUser.id && task.status === 'pending')
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  }, [crmTasks, currentUser]);
+
+  const getDueDateInfo = (dueDate: Date): { text: string; colorClass: string } => {
+    const now = new Date();
+    const due = new Date(dueDate);
+    now.setHours(0, 0, 0, 0);
+    due.setHours(0, 0, 0, 0);
+    const diffTime = due.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { text: `Quá hạn ${Math.abs(diffDays)} ngày`, colorClass: 'text-status-danger' };
+    if (diffDays === 0) return { text: 'Hết hạn hôm nay', colorClass: 'text-status-warning-text' };
+    return { text: `Còn ${diffDays} ngày`, colorClass: 'text-text-muted' };
+  };
+
+  if (myPendingTasks.length === 0) {
+    return (
+      <Card title="Công việc của tôi" icon={<ClipboardListIcon size={20} className="text-brand-primary" />}>
+        <div className="text-center py-4">
+          <CheckCircle size={32} className="mx-auto text-status-success mb-2" />
+          <p className="text-text-muted">Tuyệt vời! Bạn không có công việc nào cần làm.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title={`Công việc của tôi (${myPendingTasks.length})`} icon={<ClipboardListIcon size={20} className="text-brand-primary" />}>
+      <div className="space-y-3 max-h-80 overflow-y-auto">
+        {myPendingTasks.map(task => {
+          const customer = findUserById(task.customerId);
+          const dueDateInfo = getDueDateInfo(task.dueDate);
+          return (
+            <div key={task.id} className="p-2.5 bg-bg-subtle/50 rounded-md border-l-4 border-brand-primary/50">
+              <p className="font-semibold text-text-body leading-tight">{task.title}</p>
+              {customer && (
+                <p className="text-sm text-text-muted">
+                  KH: <Link to={`/admin/customers/${task.customerId}`} className="hover:underline text-brand-primary">{customer.name}</Link>
+                </p>
+              )}
+              <div className="flex justify-between items-center mt-1">
+                <span className={`text-xs font-medium ${dueDateInfo.colorClass}`}>{dueDateInfo.text}</span>
+                 <Button variant="ghost" size="sm" className="text-xs !p-1" onClick={() => navigate(`/admin/customers/${task.customerId}?tab=tasks`)}>Chi tiết</Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+};
+
+
+const CrmAnalyticsWidget: React.FC = () => {
+    const { users, orders, findUserById } = useData();
+
+    const crmMetrics = useMemo(() => {
+        const customers = users.filter(u => u.role === UserRole.CUSTOMER);
+        
+        // New vs Returning this month
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const ordersThisMonth = orders.filter(o => new Date(o.createdAt) >= startOfMonth);
+        const customerIdsThisMonth = [...new Set(ordersThisMonth.map(o => o.customer.id))];
+        
+        const newCustomerCount = customerIdsThisMonth.filter(id => {
+            const user = findUserById(id);
+            return user && user.customerSince && new Date(user.customerSince) >= startOfMonth;
+        }).length;
+        const returningCustomerCount = customerIdsThisMonth.length - newCustomerCount;
+        
+        // VIP Customers
+        const vipCustomerCount = customers.filter(c => c.tags?.includes('VIP')).length;
+
+        // Interaction Types
+        const interactionCounts = customers
+            .flatMap(c => c.interactionHistory || [])
+            .reduce((acc, interaction) => {
+                acc[interaction.channel] = (acc[interaction.channel] || 0) + 1;
+                return acc;
+            }, {} as Record<string, number>);
+
+        return {
+            newCustomerCount,
+            returningCustomerCount,
+            totalCustomersThisMonth: customerIdsThisMonth.length,
+            vipCustomerCount,
+            interactionCounts,
+        };
+    }, [users, orders, findUserById]);
+    
+    const interactionLabels: Record<string, string> = {
+        'in-person': 'Trực tiếp',
+        'phone': 'Điện thoại',
+        'sms': 'SMS',
+        'email': 'Email',
+        'other': 'Khác'
+    };
+
+    return (
+        <Card title="Phân tích CRM" icon={<BarChart2Icon size={20} className="text-brand-primary" />}>
+            <div className="space-y-4">
+                <div className="flex items-center space-x-4">
+                    <UserPlusIcon size={28} className="text-status-success" />
+                    <div>
+                        <p className="font-semibold text-text-heading">{crmMetrics.totalCustomersThisMonth} Khách hàng tháng này</p>
+                        <p className="text-sm text-text-muted">{crmMetrics.newCustomerCount} mới / {crmMetrics.returningCustomerCount} quay lại</p>
+                    </div>
+                </div>
+                <div className="flex items-center space-x-4">
+                    <StarIcon size={28} className="text-amber-500" />
+                    <div>
+                        <p className="font-semibold text-text-heading">{crmMetrics.vipCustomerCount} Khách hàng VIP</p>
+                        <p className="text-sm text-text-muted">Tổng số khách hàng có tag 'VIP'</p>
+                    </div>
+                </div>
+                 <div className="pt-3 border-t border-border-base">
+                    <p className="font-semibold text-text-heading mb-2">Loại tương tác đã ghi nhận:</p>
+                    <div className="space-y-1 text-sm">
+                       {Object.entries(crmMetrics.interactionCounts).length > 0 ? (
+                           Object.entries(crmMetrics.interactionCounts).map(([channel, count]) => (
+                               <div key={channel} className="flex justify-between">
+                                   <span className="text-text-muted">{interactionLabels[channel] || channel}:</span>
+                                   <span className="font-medium text-text-body">{count}</span>
+                               </div>
+                           ))
+                       ) : (
+                           <p className="text-sm text-text-muted italic">Chưa có tương tác nào được ghi nhận.</p>
+                       )}
+                    </div>
+                </div>
+            </div>
+        </Card>
+    );
+};
+
 
 const DashboardCharts = () => {
   const { orders } = useData();
@@ -98,7 +247,8 @@ const DashboardCharts = () => {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              {/* FIX: The `percent` prop from recharts can be null, undefined, or NaN, causing arithmetic errors. Added a fallback to 0 to ensure the operation is always safe. */}
+              {/* FIX: The 'percent' prop from recharts can be undefined. A fallback of 0 is provided to ensure the multiplication is safe. */}
+// FIX: The 'percent' prop from recharts can be undefined. A fallback of 0 is provided to ensure the multiplication is safe.
               <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}>
                 {orderStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[entry.name as keyof typeof PIE_COLORS]} />
@@ -114,42 +264,48 @@ const DashboardCharts = () => {
   );
 };
 
-const AIFeedbackSummary: React.FC = () => {
+const AIFeedbackAnalysis: React.FC = () => {
   const { serviceRatings, staffRatings, addNotification } = useData();
-  const [summary, setSummary] = useState('');
+  const [analysis, setAnalysis] = useState<{ sentimentScore: number; positiveTopics: string[]; negativeTopics: string[]; actionableSuggestion: string; } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleAnalyzeFeedback = useCallback(async () => {
     setIsLoading(true);
     setError('');
-    setSummary('');
+    setAnalysis(null);
 
     try {
-      if (!process.env.API_KEY) {
-        throw new Error("API key is not configured.");
-      }
+      if (!process.env.API_KEY) throw new Error("API key is not configured.");
 
-      const allComments = [
-        ...serviceRatings.map(r => r.comment),
-        ...staffRatings.map(r => r.comment)
-      ].filter(Boolean); // Filter out empty/undefined comments
+      const allComments = [...serviceRatings.map(r => r.comment), ...staffRatings.map(r => r.comment)].filter(Boolean);
 
       if (allComments.length < 3) {
-        setSummary("Chưa có đủ bình luận của khách hàng để tạo tóm tắt.");
+        setError("Chưa có đủ bình luận của khách hàng để tạo phân tích.");
         setIsLoading(false);
         return;
       }
 
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Bạn là chuyên gia phân tích dịch vụ khách hàng cho tiệm giặt là ${APP_NAME}. Dựa trên các bình luận dưới đây, hãy tạo một tóm tắt ngắn gọn bằng tiếng Việt.
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+            sentimentScore: { type: Type.NUMBER, description: "A sentiment score from 0 (very negative) to 100 (very positive) based on all comments." },
+            positiveTopics: { type: Type.ARRAY, description: "An array of 2-3 key positive topics or keywords mentioned frequently (in Vietnamese). E.g., ['Giao hàng nhanh', 'Sạch sẽ']", items: { type: Type.STRING } },
+            negativeTopics: { type: Type.ARRAY, description: "An array of 2-3 key negative topics or keywords mentioned frequently (in Vietnamese). E.g., ['Cổ áo còn bẩn', 'Giao trễ']", items: { type: Type.STRING } },
+            actionableSuggestion: { type: Type.STRING, description: "One single, concise, and actionable suggestion for the store manager to improve service based on the feedback." }
+        }
+      };
       
-      Yêu cầu tóm tắt:
-      1.  **Điểm Tích Cực:** Liệt kê những điều khách hàng hài lòng nhất.
-      2.  **Điểm Cần Cải Thiện:** Chỉ ra những vấn đề khách hàng phàn nàn nhiều nhất.
-      3.  **Đề xuất Hành động:** Gợi ý 1-2 hành động cụ thể để cải thiện dịch vụ.
+      const prompt = `Bạn là chuyên gia phân tích dịch vụ khách hàng cho tiệm giặt là ${APP_NAME}. Dựa trên các bình luận dưới đây, hãy tạo một phân tích JSON ngắn gọn.
       
-      Sử dụng định dạng markdown với tiêu đề đậm và gạch đầu dòng.
+      Yêu cầu phân tích:
+      1.  **sentimentScore:** Một con số từ 0 (rất tiêu cực) đến 100 (rất tích cực) thể hiện tâm trạng chung.
+      2.  **positiveTopics:** Một mảng chứa 2-3 chủ đề/từ khóa tích cực được nhắc đến nhiều nhất (bằng tiếng Việt).
+      3.  **negativeTopics:** Một mảng chứa 2-3 chủ đề/từ khóa tiêu cực được nhắc đến nhiều nhất (bằng tiếng Việt).
+      4.  **actionableSuggestion:** Một đề xuất hành động duy nhất, ngắn gọn, và khả thi cho quản lý cửa hàng để cải thiện dịch vụ.
+      
+      Chỉ trả về đối tượng JSON theo schema đã cung cấp.
       
       Bình luận của khách hàng:
       ${allComments.map(c => `- ${c}`).join('\n')}
@@ -158,9 +314,10 @@ const AIFeedbackSummary: React.FC = () => {
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
+        config: { responseMimeType: "application/json", responseSchema: schema },
       });
 
-      setSummary(response.text);
+      setAnalysis(JSON.parse(response.text));
 
     } catch (err) {
       console.error("Error analyzing feedback with AI:", err);
@@ -175,24 +332,46 @@ const AIFeedbackSummary: React.FC = () => {
   useEffect(() => {
     handleAnalyzeFeedback();
   }, [handleAnalyzeFeedback]);
+  
+  const scoreColor = analysis ? (analysis.sentimentScore > 75 ? 'bg-green-500' : analysis.sentimentScore > 50 ? 'bg-yellow-500' : 'bg-red-500') : 'bg-gray-300';
 
   return (
     <Card 
-      title="Tóm tắt Phản hồi Khách hàng bởi AI" 
+      title="Phân tích Phản hồi Khách hàng bởi AI" 
       icon={<MessageCircleIcon size={20} className="text-brand-primary"/>}
-      actions={
-        <Button onClick={handleAnalyzeFeedback} disabled={isLoading} size="sm" variant="ghost">
-          <RefreshCwIcon size={16} className={isLoading ? 'animate-spin' : ''}/>
-        </Button>
-      }
+      actions={ <Button onClick={handleAnalyzeFeedback} disabled={isLoading} size="sm" variant="ghost"> <RefreshCwIcon size={16} className={isLoading ? 'animate-spin' : ''}/> </Button> }
     >
       {isLoading && <div className="flex justify-center items-center h-40"><Spinner /></div>}
-      {error && <p className="text-status-danger-text text-center p-4">{error}</p>}
-      {!isLoading && !error && summary && (
-        <div className="prose prose-sm max-w-none text-text-body whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: summary.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\* (.*?)(?=\n\*|\n\n|$)/g, '<li>$1</li>').replace(/<li>/g, '<li class="list-disc ml-4">') }}>
+      {error && !isLoading && <p className="text-status-danger-text text-center p-4">{error}</p>}
+      {!isLoading && !error && analysis && (
+        <div className="space-y-4">
+            <div>
+                <p className="text-sm font-medium text-text-muted text-center mb-1">Điểm Tâm trạng Chung</p>
+                <div className="w-full bg-bg-subtle rounded-full h-4">
+                    <div className={`h-4 rounded-full ${scoreColor} transition-all duration-500`} style={{ width: `${analysis.sentimentScore}%` }}></div>
+                </div>
+                <p className="text-center font-bold text-2xl mt-1">{analysis.sentimentScore}<span className="text-sm font-normal text-text-muted">/100</span></p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-border-base">
+                <div>
+                    <h4 className="font-semibold text-text-heading flex items-center mb-2"><ThumbsUp size={16} className="mr-2 text-status-success"/>Chủ đề Tích cực</h4>
+                    <div className="space-y-1">
+                        {analysis.positiveTopics.map((topic, i) => <span key={i} className="inline-block bg-green-100 text-green-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">{topic}</span>)}
+                    </div>
+                </div>
+                 <div>
+                    <h4 className="font-semibold text-text-heading flex items-center mb-2"><ThumbsDown size={16} className="mr-2 text-status-danger"/>Chủ đề Tiêu cực</h4>
+                    <div className="space-y-1">
+                        {analysis.negativeTopics.map((topic, i) => <span key={i} className="inline-block bg-red-100 text-red-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">{topic}</span>)}
+                    </div>
+                </div>
+            </div>
+            <div className="pt-3 border-t border-border-base">
+                 <h4 className="font-semibold text-text-heading flex items-center mb-2"><Lightbulb size={16} className="mr-2 text-amber-500"/>Đề xuất Hành động</h4>
+                 <p className="text-sm text-text-body p-3 bg-amber-50 border border-amber-200 rounded-md">{analysis.actionableSuggestion}</p>
+            </div>
         </div>
       )}
-      {!isLoading && !error && !summary && <p className="text-text-muted text-center p-4">Không có dữ liệu để hiển thị.</p>}
     </Card>
   );
 };
@@ -302,6 +481,7 @@ const AdminDashboardPage: React.FC = () => {
 
   // --- RENDER LOGIC ---
   const isChairman = currentUser?.role === UserRole.CHAIRMAN;
+  const isOwnerOrManager = currentUser && (currentUser.role === UserRole.OWNER || currentUser.role === UserRole.MANAGER);
 
   interface QuickStat {
     title: string;
@@ -342,9 +522,12 @@ const AdminDashboardPage: React.FC = () => {
             ))}
         </div>
         
-        <DashboardCharts />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <CrmAnalyticsWidget />
+            <AIFeedbackAnalysis />
+        </div>
 
-        <AIFeedbackSummary />
+        <DashboardCharts />
 
         <Card title="Quản lý Chuỗi Cửa hàng" icon={<BuildingIcon size={20} className="text-brand-primary"/>}>
             <div className="space-y-3">
@@ -602,43 +785,34 @@ const AdminDashboardPage: React.FC = () => {
         
         <DashboardCharts />
 
-        <AIFeedbackSummary />
+        {(isOwnerOrManager || isChairman) && <AIFeedbackAnalysis />}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card title="Dịch vụ được sử dụng nhiều nhất" icon={<BriefcaseIcon size={20} className="text-brand-primary"/>}>
-                {topServices.length > 0 ? (
-                    <ul className="space-y-3 text-sm">
-                        {topServices.map(service => (
-                            <li key={service.name} className="flex justify-between items-center p-2 bg-bg-subtle/50 rounded-md">
-                                <span className="text-text-body">{service.name}</span>
-                                <span className="font-semibold text-text-heading">{service.count} lượt</span>
-                            </li>
-                        ))}
-                    </ul>
-                ) : <p className="text-sm text-text-muted text-center py-4">Chưa có dữ liệu dịch vụ.</p>}
-            </Card>
-
-            <Card title="Hoạt động gần đây" icon={<ActivityIcon size={20} className="text-brand-primary"/>}>
-                {recentActivities.length === 0 ? (
-                    <p className="text-sm text-text-muted text-center py-4">Không có hoạt động nào gần đây.</p>
-                ) : (
-                    <ul className="space-y-3 text-sm text-text-body">
-                        {recentActivities.map(activity => {
-                            const activityUser = activity.userId ? findUserById(activity.userId) : null;
-                            const activityUserName = activityUser ? `${activityUser.name} (${activityUser.role})` : (activity.userRole || 'Hệ thống');
-                            return (
-                                <li key={activity.id} className="flex items-start p-2 rounded-md hover:bg-bg-surface-hover transition-colors">
-                                    <NotificationIcon type={activity.type} />
-                                    <div className="flex-1">
-                                      <p><strong className="text-text-heading">{activityUserName}: </strong>{activity.message}</p>
-                                      <p className="text-xs text-text-muted mt-0.5">{new Date(activity.createdAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</p>
-                                    </div>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                )}
-            </Card>
+            <MyTasksWidget />
+            {(isOwnerOrManager || isChairman) && <CrmAnalyticsWidget />}
+            {!(isOwnerOrManager || isChairman) && 
+                <Card title="Hoạt động gần đây" icon={<ActivityIcon size={20} className="text-brand-primary"/>}>
+                    {recentActivities.length === 0 ? (
+                        <p className="text-sm text-text-muted text-center py-4">Không có hoạt động nào gần đây.</p>
+                    ) : (
+                        <ul className="space-y-3 text-sm text-text-body max-h-80 overflow-y-auto">
+                            {recentActivities.map(activity => {
+                                const activityUser = activity.userId ? findUserById(activity.userId) : null;
+                                const activityUserName = activityUser ? `${activityUser.name} (${activityUser.role})` : (activity.userRole || 'Hệ thống');
+                                return (
+                                    <li key={activity.id} className="flex items-start p-2 rounded-md hover:bg-bg-surface-hover transition-colors">
+                                        <NotificationIcon type={activity.type} />
+                                        <div className="flex-1">
+                                        <p><strong className="text-text-heading">{activityUserName}: </strong>{activity.message}</p>
+                                        <p className="text-xs text-text-muted mt-0.5">{new Date(activity.createdAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </Card>
+            }
         </div>
         
         {promoForModal && (

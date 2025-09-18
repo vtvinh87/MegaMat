@@ -1,10 +1,10 @@
-
 import { useState, useEffect } from 'react';
 import { 
     User, ServiceItem, Order, Supplier, InventoryItem, MaterialOrder, 
     MaterialItemDefinition, Notification, VariableCost, FixedCostItem, 
     FixedCostUpdateHistoryEntry, ServiceRating, StaffRating, Tip, KPI, StoreProfile,
-    StoreUpdateHistoryEntry, Promotion, WashMethodDefinition, InventoryAdjustmentRequest
+    StoreUpdateHistoryEntry, Promotion, WashMethodDefinition, InventoryAdjustmentRequest,
+    CrmTask
 } from '../../types';
 import { loadDataFromLocalStorage, saveDataToLocalStorage } from './utils';
 import * as LsKeys from './utils';
@@ -23,7 +23,7 @@ const useDebouncedSave = <T,>(key: string, value: T, delay: number = 1000) => {
 };
 
 export const useAppState = () => {
-  const [usersData, setUsersData] = useState<User[]>(() => loadDataFromLocalStorage<User[]>(LsKeys.USERS_KEY, []));
+  const [usersData, setUsersData] = useState<User[]>(() => loadDataFromLocalStorage<User[]>(LsKeys.USERS_KEY, [], 'users'));
   const [servicesData, setServicesData] = useState<ServiceItem[]>(() => loadDataFromLocalStorage<ServiceItem[]>(LsKeys.SERVICES_KEY, []));
   const [allOrdersData, setAllOrdersData] = useState<Order[]>(() => loadDataFromLocalStorage<Order[]>(LsKeys.ORDERS_KEY, [], 'orders'));
   const [suppliersData, setSuppliersData] = useState<Supplier[]>(() => loadDataFromLocalStorage<Supplier[]>(LsKeys.SUPPLIERS_KEY, []));
@@ -47,6 +47,7 @@ export const useAppState = () => {
   const [acknowledgedOptOutRequests, setAcknowledgedOptOutRequests] = useState<{ [chairmanId: string]: string[] }>(() => loadDataFromLocalStorage(LsKeys.ACKNOWLEDGED_OPT_OUT_REQUESTS_KEY, {}));
   const [acknowledgedRejectedRequestsData, setAcknowledgedRejectedRequestsData] = useState<string[]>(() => loadDataFromLocalStorage<string[]>(LsKeys.ACKNOWLEDGED_REJECTED_REQUESTS_KEY, []));
   const [washMethodsData, setWashMethodsData] = useState<WashMethodDefinition[]>(() => loadDataFromLocalStorage<WashMethodDefinition[]>(LsKeys.WASH_METHODS_KEY, []));
+  const [crmTasksData, setCrmTasksData] = useState<CrmTask[]>(() => loadDataFromLocalStorage<CrmTask[]>(LsKeys.CRM_TASKS_KEY, [], 'crmTasks'));
 
   // Granular, debounced effects for saving each piece of state
   useDebouncedSave(LsKeys.USERS_KEY, usersData);
@@ -73,6 +74,7 @@ export const useAppState = () => {
   useDebouncedSave(LsKeys.ACKNOWLEDGED_OPT_OUT_REQUESTS_KEY, acknowledgedOptOutRequests);
   useDebouncedSave(LsKeys.ACKNOWLEDGED_REJECTED_REQUESTS_KEY, acknowledgedRejectedRequestsData);
   useDebouncedSave(LsKeys.WASH_METHODS_KEY, washMethodsData);
+  useDebouncedSave(LsKeys.CRM_TASKS_KEY, crmTasksData);
 
   return {
     usersData, setUsersData,
@@ -99,5 +101,6 @@ export const useAppState = () => {
     acknowledgedOptOutRequests, setAcknowledgedOptOutRequests,
     acknowledgedRejectedRequestsData, setAcknowledgedRejectedRequestsData,
     washMethodsData, setWashMethodsData,
+    crmTasksData, setCrmTasksData,
   };
 };

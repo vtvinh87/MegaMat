@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { UserRole } from '../../types';
 import { APP_NAME } from '../../constants'; 
-import { HomeIcon, PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, SettingsIcon, BellIcon, MenuIcon, XIcon, SparklesIcon, TrendingUpIcon, LogOutIcon, LogInIcon, UserCircleIcon, UserCogIcon, BuildingIcon, FileTextIcon, MoonIcon, SunIcon, TagIcon, LayoutDashboard, DropletsIcon, ChevronDownIcon, FolderKanbanIcon, BookUser, ClipboardListIcon } from 'lucide-react';
+import { HomeIcon, PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, SettingsIcon, BellIcon, MenuIcon, XIcon, SparklesIcon, TrendingUpIcon, LogOutIcon, LogInIcon, UserCircleIcon, UserCogIcon, BuildingIcon, FileTextIcon, MoonIcon, SunIcon, TagIcon, LayoutDashboard, DropletsIcon, ChevronDownIcon, FolderKanbanIcon, BookUser, ClipboardListIcon, PieChartIcon } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 // NavItem type definition
@@ -49,8 +49,12 @@ export const Header: React.FC = () => {
   } else if (isAdminAreaUser) {
     const managementChildren: NavItem[] = [
       { to: "/admin/customers", label: "Khách hàng", icon: <UsersIcon size={20}/> },
-      { to: "/admin/services", label: "Dịch vụ", icon: <SparklesIcon size={20}/> },
     ];
+    if (isOwnerOrManager) {
+        managementChildren.push({ to: "/admin/customer-segments", label: "Phân khúc KH", icon: <PieChartIcon size={20}/> });
+    }
+     managementChildren.push({ to: "/admin/services", label: "Dịch vụ", icon: <SparklesIcon size={20}/> });
+
     if (isOwnerOrManager) {
         managementChildren.push({ to: "/admin/wash-methods", label: "PP Giặt", icon: <DropletsIcon size={20}/> });
         managementChildren.push({ to: "/admin/users", label: "Người dùng", icon: <UserCogIcon size={20}/> });

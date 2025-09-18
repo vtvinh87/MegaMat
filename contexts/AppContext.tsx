@@ -1,7 +1,9 @@
 
 
+
+
 import React, { createContext, useState, useCallback, useEffect, useRef } from 'react';
-import { AppData, Notification, Theme, User, UserRole, InventoryItem } from '../types';
+import { AppData, Notification, Theme, User, UserRole, InventoryItem, CrmTask, InteractionHistoryEntry } from '../types';
 import { useAppState } from './app/state';
 import { seedInitialData } from './app/data';
 import { loadDataFromLocalStorage, saveDataToLocalStorage, CURRENT_USER_KEY, THEME_KEY, simpleHash } from './app/utils';
@@ -9,6 +11,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { AuthContext, AuthContextType } from './AuthContext';
 import { DataContext, DataContextType } from './DataContext';
 import { useToast } from './ToastContext';
+import { GoogleGenAI, Type } from "@google/genai";
+import { APP_NAME } from '../constants';
 
 // Import new custom hooks
 import { useUserManagement } from './app/hooks/useUserManagement';
@@ -88,6 +92,160 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     usersData: appState.usersData,
     addToast: addToast,
   });
+  
+  // --- CRM Logic ---
+  const addUserInteraction = useCallback((customerId: string, interaction: Omit<InteractionHistoryEntry, 'timestamp' | 'staffUserId'> & { staffUserId?: string }) => {
+    appState.setUsersData(prevUsers => prevUsers.map(user => {
+      if (user.id === customerId) {
+        const newInteraction: InteractionHistoryEntry = {
+          ...interaction,
+          staffUserId: interaction.staffUserId || currentUserInternal?.id || 'system',
+          timestamp: new Date(),
+        };
+        const updatedHistory = [newInteraction, ...(user.interactionHistory || [])];
+        return { ...user, interactionHistory: updatedHistory };
+      }
+      return user;
+    }));
+    notificationLogic.addNotification({ message: `Đã ghi nhận tương tác mới với khách hàng.`, type: 'info', showToast: true });
+  }, [appState.setUsersData, notificationLogic, currentUserInternal]);
+
+  const addCrmTask = useCallback((taskData: Omit<CrmTask, 'id' | 'createdAt' | 'ownerId'>) => {
+    const ownerId = userManagement.getCurrentUserOwnerId();
+    if (!ownerId) {
+      notificationLogic.addNotification({ message: 'Lỗi: Không thể xác định cửa hàng để tạo công việc.', type: 'error', showToast: true });
+      return;
+    }
+    const newTask: CrmTask = {
+      ...taskData,
+      id: uuidv4(),
+      createdAt: new Date(),
+      ownerId,
+    };
+    appState.setCrmTasksData(prev => [newTask, ...prev]);
+    notificationLogic.addNotification({ message: `Đã tạo công việc mới: "${newTask.title}"`, type: 'success', showToast: true });
+  }, [userManagement.getCurrentUserOwnerId, appState.setCrmTasksData, notificationLogic]);
+
+  const updateCrmTask = useCallback((taskData: Partial<CrmTask> & { id: string }) => {
+    appState.setCrmTasksData(prevTasks => prevTasks.map(task => {
+      if (task.id === taskData.id) {
+        const updatedTask = { ...task, ...taskData };
+        if (updatedTask.status === 'completed' && !updatedTask.completedAt) {
+          updatedTask.completedAt = new Date();
+        }
+        notificationLogic.addNotification({ message: `Đã cập nhật công việc: "${updatedTask.title}"`, type: 'info', showToast: true });
+        return updatedTask;
+      }
+      return task;
+    }));
+  }, [appState.setCrmTasksData, notificationLogic]);
+
+  const deleteCrmTask = useCallback((taskId: string) => {
+    appState.setCrmTasksData(prev => prev.filter(task => task.id !== taskId));
+    notificationLogic.addNotification({ message: 'Đã xóa một công việc CRM.', type: 'warning', showToast: true });
+  }, [appState.setCrmTasksData, notificationLogic]);
+
+  const userMgmtWithNotifications = useUserManagement({
+      currentUser: currentUserInternal,
+      addNotification: notificationLogic.addNotification,
+      ...appState
+  });
+
+    const analyzeAndSetChurnRisk = useCallback(async (customerId: string) => {
+    const customer = userMgmtWithNotifications.findUserById(customerId);
+    if (!customer) {
+      addToast({ message: 'Không tìm thấy khách hàng để phân tích.', type: 'error' });
+      return;
+    }
+
+    try {
+        if (!process.env.API_KEY) throw new Error("API key is not configured.");
+
+        // 1. Gather Data
+        const customerOrders = appState.allOrdersData.filter(o => o.customer.id === customerId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const customerServiceRatings = appState.serviceRatingsData.filter(r => r.customerUserId === customerId);
+        const customerStaffRatings = appState.staffRatingsData.filter(r => r.customerUserId === customerId);
+        const customerInteractions = customer.interactionHistory || [];
+
+        // 2. Calculate Metrics
+        const lastOrderDate = customerOrders.length > 0 ? new Date(customerOrders[0].createdAt).toLocaleDateString('vi-VN') : 'N/A';
+        const aov = customerOrders.length > 0 ? (customer.lifetimeValue || 0) / customerOrders.length : 0;
+        
+        let frequency = 'N/A';
+        if (customerOrders.length > 1) {
+            const diffs = [];
+            for (let i = 0; i < customerOrders.length - 1; i++) {
+                const diff = new Date(customerOrders[i].createdAt).getTime() - new Date(customerOrders[i+1].createdAt).getTime();
+                diffs.push(diff / (1000 * 3600 * 24));
+            }
+            const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+            frequency = `${avgDiff.toFixed(1)} ngày`;
+        }
+
+        const avgServiceRating = customerServiceRatings.length > 0 ? customerServiceRatings.reduce((sum, r) => sum + r.rating, 0) / customerServiceRatings.length : 'N/A';
+        const recentComments = [...customerServiceRatings, ...customerStaffRatings].slice(0, 3).map(r => r.comment).filter(Boolean).join('; ');
+        const recentInteractions = customerInteractions.slice(0, 3).map(i => `${i.channel}: ${i.summary}`).join('; ');
+
+        // 3. Construct Prompt
+        const prompt = `Bạn là chuyên gia phân tích giữ chân khách hàng cho tiệm giặt là ${APP_NAME}. Phân tích dữ liệu khách hàng sau đây để dự đoán nguy cơ khách hàng rời bỏ (churn risk).
+    
+        Dữ liệu khách hàng:
+        - Tên: ${customer.name}
+        - Thành viên từ: ${customer.customerSince ? new Date(customer.customerSince).toLocaleDateString('vi-VN') : 'N/A'}
+        - Tổng chi tiêu: ${customer.lifetimeValue?.toLocaleString('vi-VN')} VNĐ
+        - Hạng thành viên: ${customer.loyaltyTier || 'N/A'}
+
+        Tóm tắt lịch sử đơn hàng (${customerOrders.length} đơn):
+        - Ngày đặt hàng cuối: ${lastOrderDate}
+        - Giá trị đơn hàng trung bình: ${aov.toLocaleString('vi-VN')} VNĐ
+        - Tần suất đặt hàng (trung bình): ${frequency}
+
+        Tóm tắt đánh giá:
+        - Đánh giá dịch vụ trung bình: ${typeof avgServiceRating === 'number' ? avgServiceRating.toFixed(2) + ' ★' : 'Chưa có'}
+        - Các bình luận gần đây: "${recentComments || 'Không có'}"
+
+        Tóm tắt tương tác:
+        - Số lần tương tác: ${customerInteractions.length}
+        - Các tương tác gần đây: "${recentInteractions || 'Không có'}"
+
+        Dựa trên các dữ liệu trên, hãy đưa ra phân tích nguy cơ rời bỏ. Chú ý đến các dấu hiệu tiêu cực như: tần suất đặt hàng giảm, đánh giá thấp gần đây, có khiếu nại.
+        Chỉ trả về một đối tượng JSON hợp lệ theo schema.`;
+        
+        const schema = {
+            type: Type.OBJECT,
+            properties: {
+                probability: { type: Type.NUMBER, description: 'A float between 0 (no risk) and 1 (high risk)' },
+                reasons: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'An array of 2-3 key reasons for your prediction, in Vietnamese.' },
+            }
+        };
+
+        // 4. Call Gemini API
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: { responseMimeType: "application/json", responseSchema: schema },
+        });
+
+        const analysis = JSON.parse(response.text);
+
+        // 5. Update User State
+        const churnPredictionData = {
+            probability: analysis.probability,
+            reasons: analysis.reasons,
+            lastAnalyzed: new Date(),
+        };
+
+        await userMgmtWithNotifications.updateUser({ id: customerId, churnPrediction: churnPredictionData });
+        addToast({ message: `Đã phân tích xong rủi ro churn cho ${customer.name}.`, type: 'success' });
+
+    } catch (err) {
+        console.error("Churn analysis error:", err);
+        const msg = err instanceof Error ? err.message : "Lỗi không xác định";
+        addToast({ message: `Lỗi phân tích: ${msg}`, type: 'error' });
+    }
+  }, [appState.allOrdersData, appState.serviceRatingsData, appState.staffRatingsData, userMgmtWithNotifications, addToast]);
+
 
   const orderManagement = useOrderManagement({
       currentUser: currentUserInternal,
@@ -101,6 +259,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPromotionsData: appState.setPromotionsData,
       allInventoryData: appState.allInventoryData,
       setAllInventoryData: appState.setAllInventoryData,
+      addUserInteraction,
   });
   
   const serviceManagement = useServiceManagement({
@@ -191,11 +350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addNotification: notificationLogic.addNotification,
   });
 
-  const userMgmtWithNotifications = useUserManagement({
-      currentUser: currentUserInternal,
-      addNotification: notificationLogic.addNotification,
-      ...appState
-  });
+  
 
   const filteredData = useDataFiltering({
       currentUser: currentUserInternal,
@@ -285,7 +440,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = useCallback(async (username: string, password?: string): Promise<User | null> => {
     const user = appState.usersData.find(u => u.username.toLowerCase() === username.toLowerCase() || u.phone === username);
     if (user) {
-      const hashedPassword = await simpleHash(password);
+      // FIX: The simpleHash function was called without its required argument. The 'password' variable is now passed to it.
+// FIX: The simpleHash function was called without its required argument. The 'password' variable is now passed to it.
+      const hashedPassword = password ? await simpleHash(password) : undefined;
       if (user.password === hashedPassword) {
         setCurrentUser(user);
         notificationLogic.addNotification({ message: `Chào mừng ${user.name} (${user.role}) đã đăng nhập.`, type: 'success', userId: user.id, userRole: user.role, showToast: true });
@@ -333,6 +490,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     acknowledgedOptOutRequests: appState.acknowledgedOptOutRequests,
     acknowledgedRejectedRequests: appState.acknowledgedRejectedRequestsData,
     washMethods: appState.washMethodsData,
+    crmTasks: appState.crmTasksData,
     
     activePublicCustomerId,
     setActivePublicCustomerId,
@@ -350,6 +508,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ...kpiManagement,
     ...promotionManagement,
     ...washMethodManagement,
+    addUserInteraction,
+    addCrmTask,
+    updateCrmTask,
+    deleteCrmTask,
+    analyzeAndSetChurnRisk,
     ...filteredData, // Spread filtered data slices last to override raw ones
   };
 

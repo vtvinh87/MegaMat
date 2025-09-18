@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../../contexts/DataContext';
@@ -5,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Promotion, Order, UserRole, User } from '../../types';
-import { ArrowLeftIcon, TagIcon, BarChart2Icon, Users, ClipboardListIcon, TrendingUpIcon, Percent, DollarSign, Calendar, InfoIcon, CheckCircle, XCircle, BuildingIcon } from 'lucide-react';
+import { ArrowLeftIcon, TagIcon, BarChart2Icon, Users, ClipboardListIcon, TrendingUpIcon, Percent, DollarSign, Calendar, InfoIcon, CheckCircle, XCircle, BuildingIcon, ZapIcon } from 'lucide-react';
 
 const KpiCard: React.FC<{ title: string; value: string; subValue?: string; icon: React.ReactNode }> = ({ title, value, subValue, icon }) => (
     <Card className="!shadow-sm">
@@ -50,6 +51,25 @@ const PromotionAnalyticsPage: React.FC = () => {
         
         const totalRegularRevenue = regularOrders.reduce((sum, o) => sum + o.totalAmount, 0);
         const regularAOV = regularOrders.length > 0 ? totalRegularRevenue / regularOrders.length : 0;
+        
+        const roi = totalDiscount > 0 ? ((revenueGenerated - totalDiscount) / totalDiscount) * 100 : Infinity;
+
+        // --- Lapsed Customer Analysis ---
+        const LAPSED_DAYS = 90;
+        const reactivatedLapsedCustomers = new Set<string>();
+        promotionalOrders.forEach(promoOrder => {
+            const customerId = promoOrder.customer.id;
+            const priorOrders = allOrders.filter(o => o.customer.id === customerId && new Date(o.createdAt) < new Date(promoOrder.createdAt));
+            if (priorOrders.length > 0) {
+                const lastPriorOrderDate = new Date(Math.max(...priorOrders.map(o => new Date(o.createdAt).getTime())));
+                const daysSinceLastOrder = (new Date(promoOrder.createdAt).getTime() - lastPriorOrderDate.getTime()) / (1000 * 3600 * 24);
+                if (daysSinceLastOrder >= LAPSED_DAYS) {
+                    reactivatedLapsedCustomers.add(customerId);
+                }
+            }
+        });
+        const reactivatedLapsedCustomerCount = reactivatedLapsedCustomers.size;
+
 
         const customerUsage = promotionalOrders.reduce((acc, order) => {
             const existing = acc.find(item => item.customerId === order.customer.id);
@@ -86,7 +106,8 @@ const PromotionAnalyticsPage: React.FC = () => {
 
         return {
             promotionalOrders, redemptionCount, totalDiscount, revenueGenerated,
-            promotionalAOV, regularAOV, customerBreakdown, storeBreakdown
+            promotionalAOV, regularAOV, customerBreakdown, storeBreakdown,
+            roi, reactivatedLapsedCustomerCount
         };
     }, [promotion, allOrders, isChairman, users]);
 
@@ -116,11 +137,13 @@ const PromotionAnalyticsPage: React.FC = () => {
                  </div>
             </Card>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <KpiCard title="Lượt sử dụng" value={`${analytics.redemptionCount}`} subValue={`trên ${promotion.usageLimit || '∞'} giới hạn`} icon={<Users size={24} className="text-brand-primary" />} />
                 <KpiCard title="Tổng giảm giá" value={`${analytics.totalDiscount.toLocaleString('vi-VN')} VNĐ`} icon={<DollarSign size={24} className="text-brand-primary" />} />
                 <KpiCard title="Doanh thu tạo ra" value={`${analytics.revenueGenerated.toLocaleString('vi-VN')} VNĐ`} icon={<TrendingUpIcon size={24} className="text-brand-primary" />} />
                 <KpiCard title="AOV (Khuyến mãi)" value={`${analytics.promotionalAOV.toLocaleString('vi-VN')} VNĐ`} subValue={`So với ${analytics.regularAOV.toLocaleString('vi-VN')} VNĐ (thường)`} icon={<Percent size={24} className="text-brand-primary" />} />
+                <KpiCard title="ROI (Lợi tức Đầu tư)" value={analytics.roi === Infinity ? "∞" : `${analytics.roi.toFixed(1)}%`} icon={<ZapIcon size={24} className="text-brand-primary" />} />
+                <KpiCard title="KH Lâu năm Quay lại" value={`${analytics.reactivatedLapsedCustomerCount}`} subValue="KH không đặt hàng >90 ngày" icon={<Users size={24} className="text-brand-primary" />} />
             </div>
             
             {isChairman && promotion.isSystemWide && (
