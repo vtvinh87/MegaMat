@@ -1,8 +1,5 @@
 
 
-
-
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useData } from '../../../contexts/DataContext';
 // FIX: Replaced deprecated `Customer` type with `User`.
@@ -86,6 +83,7 @@ const aiResponseSchema = {
         deliveryTime: { type: Type.STRING, nullable: true },
         orderNotes: { type: Type.STRING, nullable: true },
         targetStoreOwnerId: { type: Type.STRING, description: "The ID of the store where the order should be placed." },
+        referralCodeUsed: { type: Type.STRING, description: "The referral code provided by a new customer, if any.", nullable: true },
       },
     },
     create_manager_notification_request: {
@@ -183,9 +181,9 @@ export const AIAssistantTab: React.FC<AIAssistantTabProps> = ({ loggedInCustomer
 
         const commonWorkflows = `
 **Order Creation Flow:**
-1.  Gather ALL necessary information from the user (phone, name, services, quantities, store choice, pickup/delivery details).
+1.  Gather ALL necessary information from the user (phone, name, services, quantities, store choice, pickup/delivery details). For NEW customers, also gather their referral code if they have one.
 2.  Summarize the complete order details and ask for the user's final confirmation.
-3.  ONLY after the user explicitly confirms (e.g., "yes", "ok", "confirm"), populate the \`create_order_request\` field with ALL collected details. Do NOT send it before final confirmation.
+3.  ONLY after the user explicitly confirms (e.g., "yes", "ok", "confirm"), populate the \`create_order_request\` field with ALL collected details, including \`referralCodeUsed\` if provided. Do NOT send it before final confirmation.
 4.  **Order Modification:** If the user wants to change something after you've summarized, DO NOT send \`create_order_request\`. Instead, use \`text_response\` to acknowledge the change, update the order details internally, and present a NEW, updated summary for confirmation.
 5.  **Promotion Handling:** After getting items and store choice, INFORM the user about relevant promotion codes from the list. DO NOT apply them yourself.
 6.  **Final Confirmation Message Generation:** After you send a \`create_order_request\`, the system will process it. You will then receive a system message from the user like: \`(System message: Order [order_id] created successfully. Customer was [new/existing]. Please provide the final confirmation message to the user.)\`. Based on this message, you MUST generate a final confirmation for the user in the \`text_response\` field. If the customer was **new**, your response MUST BE: "Đơn hàng của bạn đã được tạo thành công! Một tài khoản cũng đã được tạo cho bạn với SĐT đã cung cấp. Mật khẩu mặc định là "123123". Vui lòng đăng nhập để theo dõi đơn hàng và đổi mật khẩu nhé.". If the customer was **existing**, your response MUST BE: "Đã tạo thành công đơn hàng [order_id] cho bạn. Cảm ơn bạn đã sử dụng dịch vụ!". You MUST replace \`[order_id]\` with the actual ID from the system message.
@@ -270,6 +268,7 @@ Your responses MUST conform to the provided JSON schema. Based on the user's req
         *   "đã trả", "đã lấy" -> \`["Đã trả"]\`
     *   If no status is mentioned, do not include the \`statuses\` field.
     *   If the user wants to start creating an order, first ask for their phone number. Then, populate \`lookup_info_request\` with \`type: "CUSTOMER"\` to check if they are a returning customer.
+3.  **New Customer Identification:** If a \`lookup_info_request\` for a CUSTOMER returns no results, you know they are a new customer. You MUST then ask for their full name, address, AND if they have a referral code ("Bạn có mã giới thiệu không?").
     
 ${commonWorkflows}
 

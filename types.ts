@@ -479,6 +479,7 @@ export interface OrderDetailsFromAI {
   deliveryTime?: string; 
   orderNotes?: string;
   targetStoreOwnerId?: string; // Added to specify target store for AI orders
+  referralCodeUsed?: string; // New field for AI to pass referral codes
 }
 // --- End of AI Order Details Structure ---
 

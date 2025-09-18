@@ -34,7 +34,6 @@ export const useOrderManagement = ({
     
     const newOrderWithPayment: Order = {
         ...order,
-        paymentStatus: PaymentStatus.UNPAID,
     };
 
     // Loyalty Points Redemption Logic
@@ -60,8 +59,10 @@ export const useOrderManagement = ({
       }));
     }
     
-    // Promotion Usage Tracking Logic
-    if (newOrderWithPayment.appliedPromotionId) {
+    // FIX: Promotion usage should only be counted for orders created by staff directly,
+    // not for customer-created orders that are pending confirmation.
+    // The usage count will be incremented in `updateOrder` when the status changes.
+    if (newOrderWithPayment.status !== OrderStatus.WAITING_FOR_CONFIRMATION && newOrderWithPayment.appliedPromotionId) {
       const promotionToUpdate = promotionsData.find(p => p.id === newOrderWithPayment.appliedPromotionId);
       if (promotionToUpdate) {
         const updatedPromotion: Promotion = {
@@ -87,6 +88,30 @@ export const useOrderManagement = ({
   
   const updateOrder = useCallback((updatedOrder: Order) => {
     const originalOrder = allOrdersData.find(o => o.id === updatedOrder.id);
+
+    // --- NEW: Promotion Usage Confirmation Logic ---
+    // This logic runs ONLY when a staff confirms a customer-created order.
+    const isConfirmingCustomerOrder = originalOrder && originalOrder.status === OrderStatus.WAITING_FOR_CONFIRMATION && updatedOrder.status === OrderStatus.PENDING;
+
+    if (isConfirmingCustomerOrder && updatedOrder.appliedPromotionId) {
+        const promotionToUpdate = promotionsData.find(p => p.id === updatedOrder.appliedPromotionId);
+        if (promotionToUpdate) {
+            const updatedPromotion: Promotion = {
+                ...promotionToUpdate,
+                timesUsed: promotionToUpdate.timesUsed + 1,
+                usedByCustomerIds: promotionToUpdate.usageLimitPerCustomer
+                    ? [...(promotionToUpdate.usedByCustomerIds || []), updatedOrder.customer.id]
+                    : promotionToUpdate.usedByCustomerIds,
+            };
+            setPromotionsData(prev => prev.map(p => p.id === updatedPromotion.id ? updatedPromotion : p));
+            addNotification({
+                message: `Đã áp dụng và ghi nhận mã khuyến mãi "${promotionToUpdate.name}".`,
+                type: 'info',
+                showToast: true
+            });
+        }
+    }
+
 
     // --- Automatic Inventory Depletion Logic ---
     if (originalOrder && originalOrder.status === OrderStatus.PENDING && updatedOrder.status === OrderStatus.PROCESSING) {
@@ -133,10 +158,16 @@ export const useOrderManagement = ({
     const wasNotCompletedOrReturned = originalOrder && (originalOrder.status !== OrderStatus.RETURNED && originalOrder.status !== OrderStatus.COMPLETED);
 
     // --- NEW: Referral Program Logic ---
+    // This logic now correctly triggers only when the order is completed for the first time.
     if (wasNotCompletedOrReturned && isNowCompletedOrReturned) {
         const referee = usersData.find(u => u.id === updatedOrder.customer.id);
         
-        const isFirstCompletedOrder = !allOrdersData.some(o => o.customer.id === updatedOrder.customer.id && (o.status === OrderStatus.RETURNED || o.status === OrderStatus.COMPLETED) && o.id !== updatedOrder.id);
+        // Check if this is truly the customer's first completed order.
+        const isFirstCompletedOrder = !allOrdersData.some(o => 
+            o.customer.id === updatedOrder.customer.id && 
+            (o.status === OrderStatus.RETURNED || o.status === OrderStatus.COMPLETED) && 
+            o.id !== updatedOrder.id
+        );
 
         if (referee && !referee.hasReceivedReferralBonus && isFirstCompletedOrder && updatedOrder.referralCodeUsed) {
             const referrer = usersData.find(u => u.referralCode?.toLowerCase() === updatedOrder.referralCodeUsed?.toLowerCase());

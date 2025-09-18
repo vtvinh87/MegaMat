@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, FormEvent, useMemo, useRef } f
 import { useNavigate, useParams } from 'react-router-dom';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { User, Order, OrderItem, OrderStatus, ServiceItem as AppServiceItem, UserRole, ScanHistoryEntry, Promotion, PaymentStatus, StoreProfile } from '../../types'; // Renamed ServiceItem
+import { User, Order, OrderItem, OrderStatus, ServiceItem as AppServiceItem, UserRole, ScanHistoryEntry, Promotion, PaymentStatus, StoreProfile, PaymentMethod } from '../../types'; // Renamed ServiceItem
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -46,6 +46,7 @@ export const OrderCreatePage: React.FC = () => {
   const [customerPhoneInput, setCustomerPhoneInput] = useState('');
   const [customerNameInput, setCustomerNameInput] = useState('');
   const [customerAddressInput, setCustomerAddressInput] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [resolvedCustomer, setResolvedCustomer] = useState<User | null>(null);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
   const [showNewCustomerFields, setShowNewCustomerFields] = useState(false);
@@ -65,6 +66,7 @@ export const OrderCreatePage: React.FC = () => {
   const [promotionError, setPromotionError] = useState<string | null>(null);
 
   const [isPaid, setIsPaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [storeProfile, setStoreProfile] = useState<StoreProfile | null>(null);
 
   const customerNameInputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +114,7 @@ export const OrderCreatePage: React.FC = () => {
         setShowNewCustomerFields(false);
         setOrderNotes(orderToEdit.notes || '');
         setIsPaid(orderToEdit.paymentStatus === PaymentStatus.PAID);
+        setPaymentMethod(orderToEdit.paymentMethod || PaymentMethod.CASH);
         
         if (orderToEdit.estimatedCompletionTime) {
             const d = new Date(orderToEdit.estimatedCompletionTime);
@@ -134,6 +137,7 @@ export const OrderCreatePage: React.FC = () => {
         // New order mode: set payment status based on store policy
         const defaultIsPaid = storeProfile?.paymentSettings?.policy === 'prepay';
         setIsPaid(defaultIsPaid);
+        setPaymentMethod(PaymentMethod.CASH);
 
       setIsEditMode(false); setEditingOrder(null); setCustomerPhoneInput(''); setCustomerNameInput('');
       setCustomerAddressInput(''); setResolvedCustomer(null); setShowNewCustomerFields(false);
@@ -561,6 +565,7 @@ export const OrderCreatePage: React.FC = () => {
             items: finalOrderItems,
             totalAmount: totalAmount, 
             paymentStatus: isPaid ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+            paymentMethod: isPaid ? paymentMethod : undefined,
             appliedPromotionId: appliedPromotion?.id,
             promotionDiscountAmount: promotionDiscount > 0 ? promotionDiscount : undefined,
             estimatedCompletionTime: finalEstimatedCompletionTime, 
@@ -596,6 +601,7 @@ export const OrderCreatePage: React.FC = () => {
             items: finalOrderItems, 
             status: OrderStatus.PENDING,
             paymentStatus: isPaid ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+            paymentMethod: isPaid ? paymentMethod : undefined,
             createdAt: now,
             receivedAt: now, 
             estimatedCompletionTime: finalEstimatedCompletionTime,
@@ -603,6 +609,7 @@ export const OrderCreatePage: React.FC = () => {
             appliedPromotionId: appliedPromotion?.id,
             promotionDiscountAmount: promotionDiscount > 0 ? promotionDiscount : undefined,
             notes: orderNotes.trim() || undefined,
+            referralCodeUsed: referralCode.trim() || undefined,
             qrCodePaymentUrl: `https://api.vietqr.io/image/ACB-99998888-z5NqV5g.png?amount=${totalAmount}&addInfo=${newOrderId.replace(/[^A-Z0-9-]/gi,'_')}&accountName=TIEM%20GIAT%20LA%20ABC`,
             scanHistory: [{ 
                 timestamp: now, action: 'Đơn hàng được tạo bởi nhân viên.', 
@@ -620,6 +627,8 @@ export const OrderCreatePage: React.FC = () => {
   const pageTitle = isConfirmingOrderMode ? `Xác nhận Đơn hàng: ${editingOrder?.id || ''}` : (isEditMode ? `Chỉnh sửa Đơn hàng: ${editingOrder?.id || ''}` : "Tạo đơn hàng mới");
   const saveButtonText = isConfirmingOrderMode ? "Xác nhận & Chuyển xử lý" : (isEditMode ? "Lưu thay đổi" : "Lưu và Tới danh sách");
   const SaveButtonIcon = isEditMode ? SaveIcon : SaveIcon;
+
+  const paymentMethodOptions = Object.values(PaymentMethod).map(method => ({ value: method, label: method }));
 
   const renderServiceItemRow = (item: LocalOrderItem, index: number) => {
     const currentSelectedServiceInfo = appContextServices.find(s => s.name === item.serviceNameKey && s.washMethodId === item.selectedWashMethodId);
@@ -741,6 +750,16 @@ export const OrderCreatePage: React.FC = () => {
                     required={showNewCustomerFields && !resolvedCustomer}
                     disabled={isEditMode && isCustomerPhoneLocked} 
                   />
+                  {showNewCustomerFields && !resolvedCustomer && !isEditMode && (
+                    <Input
+                      label="Mã giới thiệu (nếu có)"
+                      name="referralCode"
+                      value={referralCode}
+                      onChange={e => setReferralCode(e.target.value.toUpperCase())}
+                      placeholder="Nhập mã giới thiệu cho khách hàng mới"
+                      disabled={!!appliedPromotion}
+                    />
+                  )}
                   {showNewCustomerFields && !resolvedCustomer && <p className="text-xs text-status-info">Đây là khách hàng mới, thông tin sẽ được lưu lại.</p>}
               </div>
             )}
@@ -799,11 +818,19 @@ export const OrderCreatePage: React.FC = () => {
                     {promotionDiscount > 0 && 
                         <p className="flex justify-between text-status-success-text"><span>Giảm giá:</span> <span>-{promotionDiscount.toLocaleString('vi-VN')} VNĐ</span></p>
                     }
-                     <div className="pt-2">
-                        <label className="flex items-center space-x-2 cursor-pointer">
+                     <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 items-center">
+                        <label className="flex items-center space-x-2 cursor-pointer sm:col-span-1">
                             <input type="checkbox" checked={isPaid} onChange={e => setIsPaid(e.target.checked)} className="h-4 w-4 rounded text-brand-primary focus:ring-brand-primary-focus" />
                             <span className="font-medium text-text-body">Đã thanh toán</span>
                         </label>
+                        {isPaid && (
+                            <Select
+                                label="Hình thức thanh toán"
+                                options={paymentMethodOptions}
+                                value={paymentMethod}
+                                onChange={e => setPaymentMethod(e.target.value as PaymentMethod)}
+                            />
+                        )}
                     </div>
                 </div>
                 <div className="flex justify-between items-center sm:border-l sm:border-border-base sm:pl-4">

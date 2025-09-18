@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -289,6 +290,7 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
       totalAmount: finalTotal,
       appliedPromotionId: appliedPromotion?.id,
       promotionDiscountAmount: promotionDiscount > 0 ? promotionDiscount : undefined,
+      referralCodeUsed: orderDetailsFromAI.referralCodeUsed?.trim() || undefined,
       notes: editableOrderDetails.orderNotes,
       scanHistory: [{ timestamp: createdAt, action: 'Yêu cầu đặt lịch từ Trợ Lý AI', scannedBy: 'Trợ lý AI' }],
       ownerId: targetStoreOwnerId!,

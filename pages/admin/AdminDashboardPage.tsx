@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect, useCallback } from 'react'; 
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -9,7 +10,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { PackageIcon, UsersIcon, ShoppingBagIcon, BarChart2Icon, AlertTriangleIcon, ArrowRightIcon, Settings2Icon, CheckCircle, InfoIcon, ActivityIcon, BriefcaseIcon, PlusCircleIcon, BuildingIcon, LineChartIcon, PieChartIcon, SparklesIcon, MessageSquareIcon, MessageCircleIcon, RefreshCwIcon, MegaphoneIcon, ShieldAlertIcon, XCircleIcon, XIcon, ClipboardListIcon, UserPlusIcon, StarIcon, ThumbsUp, ThumbsDown, Lightbulb, DollarSignIcon, TrendingUpIcon } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type } from "@google/genai";
 import { Spinner } from '../../components/ui/Spinner';
 import { APP_NAME } from '../../constants';
 
@@ -197,20 +198,21 @@ const DashboardCharts = () => {
   }, [orders]);
 
   const orderStatusData = useMemo(() => {
-    const statusCounts = {
-      [OrderStatus.PENDING]: 0,
-      [OrderStatus.PROCESSING]: 0,
-      [OrderStatus.COMPLETED]: 0,
-    };
+    // FIX: Re-implemented with a Map to ensure type safety and avoid arithmetic operation errors on potentially undefined keys.
+    const statusCounts = new Map<OrderStatus, number>([
+      [OrderStatus.PENDING, 0],
+      [OrderStatus.PROCESSING, 0],
+      [OrderStatus.COMPLETED, 0],
+    ]);
     orders.forEach(order => {
-      if (order.status in statusCounts) {
-        statusCounts[order.status as keyof typeof statusCounts]++;
+      if (statusCounts.has(order.status)) {
+        statusCounts.set(order.status, (statusCounts.get(order.status) || 0) + 1);
       }
     });
     return [
-      { name: OrderStatus.PENDING, value: statusCounts[OrderStatus.PENDING] },
-      { name: OrderStatus.PROCESSING, value: statusCounts[OrderStatus.PROCESSING] },
-      { name: OrderStatus.COMPLETED, value: statusCounts[OrderStatus.COMPLETED] },
+      { name: OrderStatus.PENDING, value: statusCounts.get(OrderStatus.PENDING) || 0 },
+      { name: OrderStatus.PROCESSING, value: statusCounts.get(OrderStatus.PROCESSING) || 0 },
+      { name: OrderStatus.COMPLETED, value: statusCounts.get(OrderStatus.COMPLETED) || 0 },
     ].filter(d => d.value > 0);
   }, [orders]);
 
